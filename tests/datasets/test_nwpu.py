@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any, Generator
 
+import matplotlib.pyplot as plt
 import pytest
 import torch
 import torch.nn as nn
@@ -110,3 +111,7 @@ class TestVHR10:
                 match="pycocotools is not installed and is required to use this datase",
             ):
                 VHR10(dataset.root, dataset.split)
+
+    def test_plot(self, dataset: VHR10) -> None:
+        dataset.plot(dataset[0], suptitle="Test")
+        plt.close()

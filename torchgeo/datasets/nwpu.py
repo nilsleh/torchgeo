@@ -6,6 +6,7 @@
 import os
 from typing import Any, Callable, Dict, Optional
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from PIL import Image
@@ -244,3 +245,30 @@ class VHR10(VisionDataset):
                 self.target_meta["filename"],
                 self.target_meta["md5"] if self.checksum else None,
             )
+
+    def plot(
+        self,
+        sample: Dict[str, Tensor],
+        show_titles: bool = True,
+        suptitle: Optional[str] = None,
+    ) -> plt.Figure:
+        """Plot a sample from the dataset.
+
+        Args:
+            sample: a sample returned by :meth:`VisionClassificationDataset.__getitem__`
+            show_titles: flag indicating whether to show titles above each panel
+            suptitle: optional suptitle to use for figure
+
+        Returns:
+            a matplotlib Figure with the rendered sample
+
+        .. versionadded:: 0.3
+        """
+        image = sample["image"]
+
+        fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+
+        ax.imshow(image.permute(1, 2, 0))
+        ax.axis("off")
+
+        return fig
