@@ -28,8 +28,11 @@ def load_state_dict_from_file(
 
 
 @pytest.mark.parametrize(
-    "model_class,sensor,bands,in_channels,num_classes",
-    [(resnet50, "sentinel2", "all", 10, 17)],
+    "model_class,sensor,bands,in_channels,num_classes, num_outputs",
+    [
+        (resnet50, "sentinel2", "all", 10, 17, None),
+        (resnet50, "sentinel2", "all", 10, 17, 1),
+    ],
 )
 def test_resnet(
     monkeypatch: MonkeyPatch,
@@ -39,6 +42,7 @@ def test_resnet(
     bands: str,
     in_channels: int,
     num_classes: int,
+    num_outputs: int,
 ) -> None:
     extract_archive(
         os.path.join("tests", "data", "models", "resnet50-sentinel2-2.pt.zip"),
@@ -54,8 +58,11 @@ def test_resnet(
         torchgeo.models.resnet, "load_state_dict_from_url", load_state_dict_from_file
     )
 
-    model = model_class(sensor, bands, pretrained=True)
+    model = model_class(sensor, bands, num_outputs=num_outputs, pretrained=True)
     x = torch.zeros(1, in_channels, 256, 256)
     y = model(x)
     assert isinstance(y, torch.Tensor)
-    assert y.size() == torch.Size([1, 17])
+    if num_outputs is not None:
+        assert y.size() == torch.Size([1, num_outputs])
+    else:
+        assert y.size() == torch.Size([1, num_classes])

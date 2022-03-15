@@ -27,6 +27,7 @@ def _resnet(
     sensor: str,
     bands: str,
     arch: str,
+    num_outputs: int,
     block: Type[Union[BasicBlock, Bottleneck]],
     layers: List[int],
     pretrained: bool,
@@ -43,6 +44,7 @@ def _resnet(
         sensor: imagery source which determines number of input channels
         bands: which spectral bands to consider: "all", "rgb", etc.
         arch: ResNet version specifying number of layers
+        num_outputs: number of model outputs
         block: type of network block
         layers: number of layers per block
         pretrained: if True, returns a model pre-trained on ``sensor`` imagery
@@ -50,6 +52,8 @@ def _resnet(
 
     Returns:
         A ResNet-50 model
+
+    .. versionchanged:: 0.3 Add ``num_outputs`` argument
     """
     # Initialize a new model
     model = ResNet(block, layers, NUM_CLASSES[sensor], **kwargs)
@@ -71,12 +75,17 @@ def _resnet(
         )
         model.load_state_dict(state_dict)
 
+    # Replace last layer with the desired number of outputs
+    if num_outputs is not None:
+        model.fc = nn.Linear(in_features=2048, out_features=num_outputs)
+
     return model
 
 
 def resnet50(
     sensor: str,
     bands: str,
+    num_outputs: int,
     pretrained: bool = False,
     progress: bool = True,
     **kwargs: Any,
@@ -90,19 +99,23 @@ def resnet50(
     Args:
         sensor: imagery source which determines number of input channels
         bands: which spectral bands to consider: "all", "rgb", etc.
+        num_outputs: number of model outputs
         pretrained: if True, returns a model pre-trained on ``sensor`` imagery
         progress: if True, displays a progress bar of the download to stderr
 
     Returns:
         A ResNet-50 model
+
+    .. versionchanged:: 0.3 Add ``num_outputs`` argument
     """
     return _resnet(
-        sensor,
-        bands,
-        "resnet50",
-        Bottleneck,
-        [3, 4, 6, 3],
-        pretrained,
-        progress,
+        sensor=sensor,
+        bands=bands,
+        arch="resnet50",
+        num_outputs=num_outputs,
+        block=Bottleneck,
+        layers=[3, 4, 6, 3],
+        pretrained=pretrained,
+        progress=progress,
         **kwargs,
     )
