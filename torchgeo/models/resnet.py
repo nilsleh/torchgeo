@@ -3,7 +3,7 @@
 
 """Pre-trained ResNet models."""
 
-from typing import Any, List, Type, Union
+from typing import Any, List, Optional, Type, Union
 
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
@@ -27,7 +27,7 @@ def _resnet(
     sensor: str,
     bands: str,
     arch: str,
-    num_outputs: int,
+    num_outputs: Optional[int],
     block: Type[Union[BasicBlock, Bottleneck]],
     layers: List[int],
     pretrained: bool,
@@ -85,7 +85,7 @@ def _resnet(
 def resnet50(
     sensor: str,
     bands: str,
-    num_outputs: int,
+    num_outputs: Optional[int] = None,
     pretrained: bool = False,
     progress: bool = True,
     **kwargs: Any,
@@ -94,7 +94,7 @@ def resnet50(
 
     If you use this model in your research, please cite the following paper:
 
-    * https://arxiv.org/pdf/1512.03385.pdf
+     * https://arxiv.org/pdf/1512.03385.pdf
 
     Args:
         sensor: imagery source which determines number of input channels
@@ -106,7 +106,7 @@ def resnet50(
     Returns:
         A ResNet-50 model
 
-    .. versionchanged:: 0.3 Add ``num_outputs`` argument
+     .. versionchanged:: 0.3 Add ``num_outputs`` argument
     """
     return _resnet(
         sensor=sensor,
