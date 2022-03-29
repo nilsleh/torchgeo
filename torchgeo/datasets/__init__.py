@@ -65,6 +65,7 @@ from .levircd import LEVIRCDPlus
 from .loveda import LoveDA
 from .naip import NAIP
 from .nasa_marine_debris import NASAMarineDebris
+from .neonspecies import NEONTreeSpecies
 from .nwpu import VHR10
 from .openbuildings import OpenBuildings
 from .oscd import OSCD
@@ -122,6 +123,7 @@ __all__ = (
     "Landsat8",
     "Landsat9",
     "NAIP",
+    "NEONTreeSpecies",
     "OpenBuildings",
     "Sentinel",
     "Sentinel2",
