@@ -5,7 +5,6 @@
 
 import glob
 import os
-import re
 import sys
 from typing import Any, Callable, Dict, Optional, cast
 
@@ -15,13 +14,7 @@ from rasterio.crs import CRS
 from rasterio.vrt import WarpedVRT
 
 from .geo import GeoDataset
-from .utils import (
-    BoundingBox,
-    check_integrity,
-    disambiguate_timestamp,
-    download_url,
-    extract_archive,
-)
+from .utils import BoundingBox, check_integrity, download_url, extract_archive
 
 
 class NEONTreeSpecies(GeoDataset):
@@ -149,13 +142,13 @@ class NEONTreeSpecies(GeoDataset):
     }
 
     directories = {
-        "train": ["training"],
-        "test": ["evaluation"],
-        "annotations": ["annotations"],
+        "train": "training",
+        "test": "evaluation",
+        "annotations": "annotations",
     }
     splits = ["train", "test"]
-    filename_glob = ""
-    filename_regex = ""
+    filename_glob = "*.tif"
+    filename_regex = ".*"
     date_format = "Y"
 
     def __init__(
@@ -201,11 +194,16 @@ class NEONTreeSpecies(GeoDataset):
 
         # Populate the dataset index
         i = 0
-        pathname = os.path.join(root, "**", self.filename_glob)
-        filename_regex = re.compile(self.filename_regex, re.VERBOSE)
+        pathname = os.path.join(
+            root, self.directories[split], "RGB", self.filename_glob
+        )
         for filepath in glob.iglob(pathname, recursive=True):
-            match = re.match(filename_regex, os.path.basename(filepath))
-            if match is not None:
+            base_file = os.path.basename(filepath)
+            xml_file = base_file.split(".")[0] + ".xml"
+            match = os.path.exists(
+                os.path.join("data", "neon", "annotations", xml_file)
+            )
+            if match:
                 try:
                     with rasterio.open(filepath) as src:
 
@@ -213,18 +211,18 @@ class NEONTreeSpecies(GeoDataset):
                             crs = src.crs
                         if res is None:
                             res = src.res[0]
-
-                        with WarpedVRT(src, crs=crs) as vrt:
-                            minx, miny, maxx, maxy = vrt.bounds
+                        try:
+                            with WarpedVRT(src, crs=crs) as vrt:
+                                minx, miny, maxx, maxy = vrt.bounds
+                        except ValueError:
+                            print(0)
+                            continue
                 except rasterio.errors.RasterioIOError:
                     # Skip files that rasterio is unable to read
                     continue
                 else:
                     mint: float = 0
                     maxt: float = sys.maxsize
-                    if "date" in match.groupdict():
-                        date = match.group("date")
-                        mint, maxt = disambiguate_timestamp(date, self.date_format)
 
                     coords = (minx, maxx, miny, maxy, mint, maxt)
                     self.index.insert(i, coords, filepath)
@@ -250,7 +248,6 @@ class NEONTreeSpecies(GeoDataset):
         Raises:
             IndexError: if query is not found in the index
         """
-        return {"hello": "hi"}
 
     def _verify(self) -> None:
         """Verify the integrity of the dataset.
@@ -265,15 +262,14 @@ class NEONTreeSpecies(GeoDataset):
         annot_md5 = self.metadata["annotations"]["md5"]
         annot_filename = self.metadata["annotations"]["filename"]
         annot_directories = self.directories["annotations"]
-
         # Check if the files already exist
         exists = [
             os.path.exists(os.path.join(self.root, directory))
-            for directory in split_directories + annot_directories
+            for directory in [split_directories, annot_directories]
         ]
+
         if all(exists):
             return
-
         # Check if downloaded zip files exist
         exists = []
         for filename, md5 in zip(
