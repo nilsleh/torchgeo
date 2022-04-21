@@ -70,6 +70,7 @@ from .nwpu import VHR10
 from .openbuildings import OpenBuildings
 from .oscd import OSCD
 from .patternnet import PatternNet
+from .plant_village_crop_type_kenya import PlantVillageCropTypeKenya
 from .potsdam import Potsdam2D
 from .resisc45 import RESISC45
 from .seco import SeasonalContrastS2
@@ -132,6 +133,7 @@ __all__ = (
     "Landsat9",
     "NAIP",
     "OpenBuildings",
+    "PlantVillageCropTypeKenya",
     "Sentinel",
     "Sentinel2",
     # VisionDataset
