@@ -3,23 +3,35 @@
 
 """CV4A Kenya Crop Type dataset."""
 
-import csv
+import glob
+import json
 import os
 from functools import lru_cache
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, cast
 
+import fiona
 import matplotlib.pyplot as plt
 import numpy as np
+import rasterio
 import torch
-from PIL import Image
+from pyproj import Transformer
+from rasterio.crs import CRS
+from rasterio.io import DatasetReader
+from rasterio.vrt import WarpedVRT
+from rasterio.windows import from_bounds
 from torch import Tensor
 
-from .geo import VisionDataset
-from .utils import check_integrity, download_radiant_mlhub_dataset, extract_archive
+from .geo import GeoDataset
+from .utils import (
+    BoundingBox,
+    check_integrity,
+    disambiguate_timestamp,
+    download_radiant_mlhub_dataset,
+    extract_archive,
+    percentile_normalization,
+)
 
-
-# TODO: read geospatial information from stac.json files
-class CV4AKenyaCropType(VisionDataset):
+class CV4AKenyaCropType(GeoDataset):
     """CV4A Kenya Crop Type dataset.
 
     Used in a competition in the Computer Vision for Agriculture (CV4A) workshop in
@@ -38,11 +50,6 @@ class CV4AKenyaCropType(VisionDataset):
       Sentinel-2 atmospheric correction algorithm (Sen2Cor) and provides an estimated
       cloud probability (0-100%) per pixel. All of the bands are mapped to a common
       10 m spatial resolution grid.
-    * A raster layer indicating the crop ID for the fields in the training set.
-    * A raster layer indicating field IDs for the fields (both training and test sets).
-      Fields with a crop ID 0 are the test fields.
-
-    There are 3,286 fields in the train set and 1,402 fields in the test set.
 
     If you use this dataset in your research, please cite the following paper:
 
@@ -59,34 +66,36 @@ class CV4AKenyaCropType(VisionDataset):
     dataset_id = "ref_african_crops_kenya_02"
     image_meta = {
         "filename": "ref_african_crops_kenya_02_source.tar.gz",
+        "directory": "ref_african_crops_kenya_01_source",
         "md5": "9c2004782f6dc83abb1bf45ba4d0da46",
     }
     target_meta = {
         "filename": "ref_african_crops_kenya_02_labels.tar.gz",
+        "directory": "ref_african_crops_kenya_01_labels",
         "md5": "93949abd0ae82ba564f5a933cefd8215",
     }
 
-    tile_names = [
-        "ref_african_crops_kenya_02_tile_00",
-        "ref_african_crops_kenya_02_tile_01",
-        "ref_african_crops_kenya_02_tile_02",
-        "ref_african_crops_kenya_02_tile_03",
-    ]
-    dates = [
-        "20190606",
-        "20190701",
-        "20190706",
-        "20190711",
-        "20190721",
-        "20190805",
-        "20190815",
-        "20190825",
-        "20190909",
-        "20190919",
-        "20190924",
-        "20191004",
-        "20191103",
-    ]
+    # tile_names = [
+    #     "ref_african_crops_kenya_02_tile_00",
+    #     "ref_african_crops_kenya_02_tile_01",
+    #     "ref_african_crops_kenya_02_tile_02",
+    #     "ref_african_crops_kenya_02_tile_03",
+    # ]
+    # dates = [
+    #     "20190606",
+    #     "20190701",
+    #     "20190706",
+    #     "20190711",
+    #     "20190721",
+    #     "20190805",
+    #     "20190815",
+    #     "20190825",
+    #     "20190909",
+    #     "20190919",
+    #     "20190924",
+    #     "20191004",
+    #     "20191103",
+    # ]
     band_names = (
         "B01",
         "B02",
@@ -105,36 +114,34 @@ class CV4AKenyaCropType(VisionDataset):
 
     RGB_BANDS = ["B04", "B03", "B02"]
 
-    # Same for all tiles
-    tile_height = 3035
-    tile_width = 2016
 
     def __init__(
         self,
         root: str = "data",
-        chip_size: int = 256,
-        stride: int = 128,
         bands: Tuple[str, ...] = band_names,
+        crs: Optional[CRS] = None,
+        res: Optional[float] = None,
         transforms: Optional[Callable[[Dict[str, Tensor]], Dict[str, Tensor]]] = None,
         download: bool = False,
         api_key: Optional[str] = None,
         checksum: bool = False,
-        verbose: bool = False,
+        cache: bool = True,
     ) -> None:
         """Initialize a new CV4A Kenya Crop Type Dataset instance.
 
         Args:
             root: root directory where dataset can be found
-            chip_size: size of chips
-            stride: spacing between chips, if less than chip_size, then there
-                will be overlap between chips
             bands: the subset of bands to load
+            crs: :term:`coordinate reference system (CRS)` to warp to
+                (defaults to the CRS of the first file found)
+            res: resolution of the dataset in units of CRS
+                (defaults to the resolution of the first file found)
             transforms: a function/transform that takes input sample and its target as
                 entry and returns a transformed version
             download: if True, download dataset and store it in the root directory
             api_key: a RadiantEarth MLHub API key to use for downloading the dataset
             checksum: if True, check the MD5 of the downloaded files (may be slow)
-            verbose: if True, print messages when new tiles are loaded
+            cache: if True, cache file handle to speed up repeated sampling
 
         Raises:
             RuntimeError: if ``download=False`` but dataset is missing or checksum fails
@@ -142,32 +149,73 @@ class CV4AKenyaCropType(VisionDataset):
         self._validate_bands(bands)
 
         self.root = root
-        self.chip_size = chip_size
-        self.stride = stride
         self.bands = bands
         self.transforms = transforms
         self.checksum = checksum
-        self.verbose = verbose
+        self.download = download
+        self.api_key = api_key
 
-        if download:
-            self._download(api_key)
+        # self._verify()
 
-        if not self._check_integrity():
-            raise RuntimeError(
-                "Dataset not found or corrupted. "
-                + "You can use download=True to download it"
+        super().__init__(transforms)
+
+        # fill index base on stac.json files
+        i = 0
+        pathname = os.path.join(root, self.image_meta["directory"], "**", "stac.json")
+        for filepath in glob.iglob(pathname, recursive=True):
+            label_dir = os.path.basename(os.path.dirname(filepath)).rsplit("_", 1)[0]
+            label_path = os.path.join(
+                self.root, self.target_meta["directory"], label_dir, "labels.geojson"
+            )
+            label_path = label_path.replace("_01_source_", "_01_labels_")
+            import pdb
+            pdb.set_trace()
+            if i == 0:
+                with open(label_path) as label_file:
+                    data = json.load(label_file)
+
+                # neither the .tif source or label files have
+                if crs is None:
+                    crs = CRS.from_string(data["crs"]["properties"]["name"])
+                if res is None:
+                    res = 10
+
+            # bboxes in source imagery are in epsg '4326'
+            transformer = Transformer.from_crs(
+                CRS.from_epsg(4326), crs.to_epsg(), always_xy=True
             )
 
-        # Calculate the indices that we will use over all tiles
-        self.chips_metadata = []
-        for tile_index in range(len(self.tile_names)):
-            for y in list(range(0, self.tile_height - self.chip_size, stride)) + [
-                self.tile_height - self.chip_size
-            ]:
-                for x in list(range(0, self.tile_width - self.chip_size, stride)) + [
-                    self.tile_width - self.chip_size
-                ]:
-                    self.chips_metadata.append((tile_index, y, x))
+            with open(filepath) as stac_file:
+                data = json.load(stac_file)
+
+            minx, miny, maxx, maxy = data["bbox"]
+
+            (minx, maxx), (miny, maxy) = transformer.transform(
+                [minx, maxx], [miny, maxy]
+            )
+
+            date = data["properties"]["datetime"]
+            mint, maxt = disambiguate_timestamp(date, self.date_format)
+
+            coords = (minx, maxx, miny, maxy, mint, maxt)
+            # insert dict here with filepath and label
+            self.index.insert(
+                i,
+                coords,
+                {"img_dir": os.path.dirname(filepath), "label_path": label_path},
+            )
+            i += 1
+
+        if i == 0:
+            raise FileNotFoundError(
+                f"No {self.__class__.__name__} data was found in '{root}'"
+            )
+
+        self._crs = cast(CRS, crs)
+        self.res = cast(float, res)
+
+
+
 
     def __getitem__(self, index: int) -> Dict[str, Tensor]:
         """Return an index within the dataset.
@@ -178,37 +226,12 @@ class CV4AKenyaCropType(VisionDataset):
         Returns:
             data, labels, field ids, and metadata at that index
         """
-        tile_index, y, x = self.chips_metadata[index]
-        tile_name = self.tile_names[tile_index]
-
-        img = self._load_all_image_tiles(tile_name, self.bands)
-        labels, field_ids = self._load_label_tile(tile_name)
-
-        img = img[:, :, y : y + self.chip_size, x : x + self.chip_size]
-        labels = labels[y : y + self.chip_size, x : x + self.chip_size]
-        field_ids = field_ids[y : y + self.chip_size, x : x + self.chip_size]
-
-        sample = {
-            "image": img,
-            "mask": labels,
-            "field_ids": field_ids,
-            "tile_index": torch.tensor(tile_index),
-            "x": torch.tensor(x),
-            "y": torch.tensor(y),
-        }
 
         if self.transforms is not None:
             sample = self.transforms(sample)
 
         return sample
 
-    def __len__(self) -> int:
-        """Return the number of chips in the dataset.
-
-        Returns:
-            length of the dataset
-        """
-        return len(self.chips_metadata)
 
     @lru_cache(maxsize=128)
     def _load_label_tile(self, tile_name: str) -> Tuple[Tensor, Tensor]:
@@ -335,71 +358,61 @@ class CV4AKenyaCropType(VisionDataset):
 
         return img
 
-    def _check_integrity(self) -> bool:
-        """Check integrity of dataset.
-
-        Returns:
-            True if dataset files are found and/or MD5s match, else False
-        """
-        images: bool = check_integrity(
-            os.path.join(self.root, self.image_meta["filename"]),
-            self.image_meta["md5"] if self.checksum else None,
-        )
-
-        targets: bool = check_integrity(
-            os.path.join(self.root, self.target_meta["filename"]),
-            self.target_meta["md5"] if self.checksum else None,
-        )
-
-        return images and targets
-
-    def get_splits(self) -> Tuple[List[int], List[int]]:
-        """Get the field_ids for the train/test splits from the dataset directory.
-
-        Returns:
-            list of training field_ids and list of testing field_ids
-        """
-        train_field_ids = []
-        test_field_ids = []
-        splits_fn = os.path.join(
-            self.root,
-            "ref_african_crops_kenya_02_labels",
-            "_common",
-            "field_train_test_ids.csv",
-        )
-
-        with open(splits_fn, newline="") as f:
-            reader = csv.reader(f)
-
-            # Skip header row
-            next(reader)
-
-            for row in reader:
-                train_field_ids.append(int(row[0]))
-                if row[1]:
-                    test_field_ids.append(int(row[1]))
-
-        return train_field_ids, test_field_ids
-
-    def _download(self, api_key: Optional[str] = None) -> None:
-        """Download the dataset and extract it.
-
-        Args:
-            api_key: a RadiantEarth MLHub API key to use for downloading the dataset
-
+    def _verify(self) -> None:
+        """Verify the integrity of the dataset.
         Raises:
-            RuntimeError: if download doesn't work correctly or checksums don't match
+            RuntimeError: if ``download=False`` but dataset is missing or checksum fails
         """
-        if self._check_integrity():
-            print("Files already downloaded and verified")
+        # Check if extracted files already exists
+        exists = []
+        for directory in [self.image_meta["directory"], self.target_meta["directory"]]:
+            if os.path.exists(os.path.join(self.root, directory)):
+                exists.append(True)
+            else:
+                exists.append(False)
+        if all(exists):
             return
 
-        download_radiant_mlhub_dataset(self.dataset_id, self.root, api_key)
+        # check if compressed files exists
+        exists = []
+        for filename, md5 in zip(
+            [self.image_meta["filename"], self.target_meta["filename"]],
+            [self.image_meta["md5"], self.target_meta["md5"]],
+        ):
+            filepath = os.path.join(self.root, filename)
+            if os.path.isfile(filepath):
+                if self.checksum and not check_integrity(filepath, md5):
+                    raise RuntimeError("Dataset found, but corrupted.")
+                exists.append(True)
+                extract_archive(filepath, self.root)
+            else:
+                exists.append(False)
 
+        if all(exists):
+            return
+
+        # Check if the user requested to download the dataset
+        if not self.download:
+            raise RuntimeError(
+                f"Dataset not found in `root={self.root}` and `download=False`, "
+                "either specify a different `root` directory or use `download=True` "
+                "to automaticaly download the dataset."
+            )
+
+        # Download the dataset
+        self._download()
+        self._extract()
+
+    def _download(self) -> None:
+        """Download the dataset."""
+        download_radiant_mlhub_dataset(self.dataset_id, self.root, self.api_key)
+
+    def _extract(self) -> None:
+        """Extract the dataset."""
         image_archive_path = os.path.join(self.root, self.image_meta["filename"])
         target_archive_path = os.path.join(self.root, self.target_meta["filename"])
-        for fn in [image_archive_path, target_archive_path]:
-            extract_archive(fn, self.root)
+        for filename in [image_archive_path, target_archive_path]:
+            extract_archive(filename, self.root)
 
     def plot(
         self,
@@ -419,7 +432,6 @@ class CV4AKenyaCropType(VisionDataset):
         Returns:
             a matplotlib Figure with the rendered sample
 
-        .. versionadded:: 0.2
         """
         rgb_indices = []
         for band in self.RGB_BANDS:
