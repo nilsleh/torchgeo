@@ -67,37 +67,16 @@ class CV4AKenyaCropType(GeoDataset):
     dataset_id = "ref_african_crops_kenya_02"
     image_meta = {
         "filename": "ref_african_crops_kenya_02_source.tar.gz",
-        "directory": "ref_african_crops_kenya_01_source",
+        "directory": "ref_african_crops_kenya_02_source",
         "md5": "9c2004782f6dc83abb1bf45ba4d0da46",
     }
     target_meta = {
         "filename": "ref_african_crops_kenya_02_labels.tar.gz",
-        "directory": "ref_african_crops_kenya_01_labels",
+        "directory": "ref_african_crops_kenya_02_labels",
         "md5": "93949abd0ae82ba564f5a933cefd8215",
     }
 
-    # tile_names = [
-    #     "ref_african_crops_kenya_02_tile_00",
-    #     "ref_african_crops_kenya_02_tile_01",
-    #     "ref_african_crops_kenya_02_tile_02",
-    #     "ref_african_crops_kenya_02_tile_03",
-    # ]
-    # dates = [
-    #     "20190606",
-    #     "20190701",
-    #     "20190706",
-    #     "20190711",
-    #     "20190721",
-    #     "20190805",
-    #     "20190815",
-    #     "20190825",
-    #     "20190909",
-    #     "20190919",
-    #     "20190924",
-    #     "20191004",
-    #     "20191103",
-    # ]
-    band_names = (
+    all_bands = (
         "B01",
         "B02",
         "B03",
@@ -115,10 +94,15 @@ class CV4AKenyaCropType(GeoDataset):
 
     RGB_BANDS = ["B04", "B03", "B02"]
 
+    date_format = "%Y-%m-%dT%H:%M:%SZ"
+
+    tile_height = 3035
+    tile_width = 2016
+
     def __init__(
         self,
         root: str = "data",
-        bands: Tuple[str, ...] = band_names,
+        bands: Tuple[str, ...] = all_bands,
         crs: Optional[CRS] = None,
         res: Optional[float] = None,
         transforms: Optional[Callable[[Dict[str, Tensor]], Dict[str, Tensor]]] = None,
@@ -154,30 +138,28 @@ class CV4AKenyaCropType(GeoDataset):
         self.checksum = checksum
         self.download = download
         self.api_key = api_key
+        self.cache = cache
 
-        # self._verify()
+        self._verify()
 
         super().__init__(transforms)
 
         # fill index base on stac.json files
         i = 0
         pathname = os.path.join(root, self.image_meta["directory"], "**", "stac.json")
+        self.imgdir2bbox: Dict[str, Tuple] = {}
         for filepath in glob.iglob(pathname, recursive=True):
             label_dir = os.path.basename(os.path.dirname(filepath)).rsplit("_", 1)[0]
             label_path = os.path.join(
                 self.root, self.target_meta["directory"], label_dir, "labels.geojson"
             )
             label_path = label_path.replace("_01_source_", "_01_labels_")
-            import pdb
 
-            pdb.set_trace()
             if i == 0:
-                with open(label_path) as label_file:
-                    data = json.load(label_file)
-
-                # neither the .tif source or label files have
+                # neither the .tif source or label files have crs
+                # stac bounding boxes are in 4326
                 if crs is None:
-                    crs = CRS.from_string(data["crs"]["properties"]["name"])
+                    crs = CRS.from_epsg(4326)
                 if res is None:
                     res = 10
 
@@ -205,62 +187,153 @@ class CV4AKenyaCropType(GeoDataset):
                 coords,
                 {"img_dir": os.path.dirname(filepath), "label_path": label_path},
             )
+            self.imgdir2bbox[os.path.dirname(filepath)] = coords
             i += 1
 
         if i == 0:
-            raise FileNotFoundError(
-                f"No {self.__class__.__name__} data was found in '{root}'"
-            )
+            raise FileNotFoundError(f"No stac.json files found in '{root}'")
 
         self._crs = cast(CRS, crs)
         self.res = cast(float, res)
 
-    def __getitem__(self, index: int) -> Dict[str, Tensor]:
-        """Return an index within the dataset.
+    def __getitem__(self, query: BoundingBox) -> Dict[str, Any]:
+        """Retrieve image/mask pair and metadata indexed by query.
 
         Args:
-            index: index to return
+            query: (minx, maxx, miny, maxy, mint, maxt) coordinates to index
 
         Returns:
-            data, labels, field ids, and metadata at that index
+            sample of image/mask and metadata at that index TxCxHxW
+
+        Raises:
+            IndexError: if query is not found in the index
         """
+        hits = self.index.intersection(tuple(query), objects=True)
+        filepaths = [hit.object for hit in hits]
+
+        if not filepaths:
+            raise IndexError(
+                f"query: {query} not found in index with bounds: {self.bounds}"
+            )
+
+        # load imagery
+        data = self._load_separate_images(filepaths, query)
+        import pdb
+
+        pdb.set_trace()
+        # load mask
+        mask = self._load_mask(filepaths, query)
+
+        sample = {"image": data, "mask": mask, "crs": self.crs, "bbox": query}
 
         if self.transforms is not None:
             sample = self.transforms(sample)
 
         return sample
 
+    def _load_separate_images(
+        self, filepaths: Sequence[str], query: BoundingBox
+    ) -> Tensor:
+        """Load seperate band images.
+        Args:
+            filepaths: one or more files to load and merge
+            query: (minx, maxx, miny, maxy, mint, maxt) coordinates to index
+        Returns:
+            images at this query indey
+        """
+        # load imagery
+        img_list: List[Tensor] = []
+        for filepath in filepaths:
+            band_filepaths = []
+            for band in getattr(self, "bands", self.all_bands):
+                band_filename = os.path.join(filepath["img_dir"], band + ".tif")
+                band_filepaths.append(band_filename)
+            img_list.append(self._concatenate_bands(band_filepaths, query))
+
+        # stack along time dimension
+        data = torch.stack(img_list, dim=0)
+
+        return data
+
+    def _concatenate_bands(
+        self, filepaths: Sequence[str], query: BoundingBox
+    ) -> Tensor:
+        """Load and merge one or more files.
+        Args:
+            filepaths: one or more files to load and merge
+            query: (minx, maxx, miny, maxy, mint, maxt) coordinates to index
+        Returns:
+            image/mask at that index
+        """
+        if self.cache:
+            vrt_fhs = [self._cached_load_warp_file(fp) for fp in filepaths]
+        else:
+            vrt_fhs = [self._load_warp_file(fp) for fp in filepaths]
+
+        bounds = (query.minx, query.miny, query.maxx, query.maxy)
+        img_list: List[Tensor] = []
+        for src in vrt_fhs:
+            out_width = int(round((query.maxx - query.minx) / self.res))
+            out_height = int(round((query.maxy - query.miny) / self.res))
+            out_shape = (src.count, out_height, out_width)
+            dest = src.read(
+                out_shape=out_shape, window=from_bounds(*bounds, src.transform)
+            ).astype(np.int32)
+
+            img_list.append(torch.from_numpy(dest))
+
+        tensor = torch.cat(img_list, dim=0)
+        return tensor
+
     @lru_cache(maxsize=128)
-    def _load_label_tile(self, tile_name: str) -> Tuple[Tensor, Tensor]:
-        """Load a single _tile_ of labels and field_ids.
+    def _cached_load_warp_file(self, filepath: str) -> DatasetReader:
+        """Cached version of :meth:`_load_warp_file`.
 
         Args:
-            tile_name: name of tile to load
+            img_info: file to load and warp, as well as bbox of that image
 
         Returns:
-            tuple of labels and field ids
-
-        Raises:
-            AssertionError: if ``tile_name`` is invalid
+            file handle of warped VRT
         """
-        assert tile_name in self.tile_names
+        return self._load_warp_file(filepath)
 
-        if self.verbose:
-            print(f"Loading labels/field_ids for {tile_name}")
+    def _load_warp_file(self, filepath: str) -> DatasetReader:
+        """Load and warp a file to the correct CRS and resolution.
 
-        directory = os.path.join(
-            self.root, "ref_african_crops_kenya_02_labels", tile_name + "_label"
+        Args:
+            img_info: filepath to load and warp, as well as bbox of that image
+
+        Returns:
+            file handle of warped VRT
+        """
+        # since images do not have crs or proper bounds, open them
+        # by transforming them to epsg 4326 based on accompanying bbox
+        # minx, maxx, miny, maxy
+        coords = self.imgdir2bbox[os.path.dirname(filepath)]
+        transform = rasterio.transform.from_bounds(
+            west=coords[2],
+            east=coords[3],
+            south=coords[0],
+            north=coords[1],
+            width=self.tile_width,
+            height=self.tile_height,
         )
+        bounds = (coords[0], coords[2], coords[1], coords[3])
+        # out_width = int(round((coords[2] - coords[0]) / self.res))
+        # out_height = int(round((coords[3] - coords[1]) / self.res))
+        out_shape = (1, self.tile_height, self.tile_width)
+        import pdb
 
-        with Image.open(os.path.join(directory, "labels.tif")) as img:
-            array: "np.typing.NDArray[np.int_]" = np.array(img)
-            labels = torch.from_numpy(array)
-
-        with Image.open(os.path.join(directory, "field_ids.tif")) as img:
-            array = np.array(img)
-            field_ids = torch.from_numpy(array)
-
-        return (labels, field_ids)
+        pdb.set_trace()
+        src = rasterio.open(filepath)
+        k = src.read(out_shape, window=from_bounds(*bounds, transform))
+        # Only warp if necessary
+        if src.crs != self.crs:
+            vrt = WarpedVRT(src, crs=self.crs, transform=transform)
+            src.close()
+            return vrt
+        else:
+            return src
 
     def _validate_bands(self, bands: Tuple[str, ...]) -> None:
         """Validate list of bands.
@@ -274,86 +347,8 @@ class CV4AKenyaCropType(GeoDataset):
         """
         assert isinstance(bands, tuple), "The list of bands must be a tuple"
         for band in bands:
-            if band not in self.band_names:
+            if band not in self.all_bands:
                 raise ValueError(f"'{band}' is an invalid band name.")
-
-    @lru_cache(maxsize=128)
-    def _load_all_image_tiles(
-        self, tile_name: str, bands: Tuple[str, ...] = band_names
-    ) -> Tensor:
-        """Load all the imagery (across time) for a single _tile_.
-
-        Optionally allows for subsetting of the bands that are loaded.
-
-        Args:
-            tile_name: name of tile to load
-            bands: tuple of bands to load
-
-        Returns
-            imagery of shape (13, number of bands, 3035, 2016) where 13 is the number of
-                points in time, 3035 is the tile height, and 2016 is the tile width
-
-        Raises:
-            AssertionError: if ``tile_name`` is invalid
-        """
-        assert tile_name in self.tile_names
-
-        if self.verbose:
-            print(f"Loading all imagery for {tile_name}")
-
-        img = torch.zeros(
-            len(self.dates),
-            len(bands),
-            self.tile_height,
-            self.tile_width,
-            dtype=torch.float32,
-        )
-
-        for date_index, date in enumerate(self.dates):
-            img[date_index] = self._load_single_image_tile(tile_name, date, self.bands)
-
-        return img
-
-    @lru_cache(maxsize=128)
-    def _load_single_image_tile(
-        self, tile_name: str, date: str, bands: Tuple[str, ...]
-    ) -> Tensor:
-        """Load the imagery for a single tile for a single date.
-
-        Optionally allows for subsetting of the bands that are loaded.
-
-        Args:
-            tile_name: name of tile to load
-            date: date of tile to load
-            bands: bands to load
-
-        Returns:
-            array containing a single image tile
-
-        Raises:
-            AssertionError: if ``tile_name`` or ``date`` is invalid
-        """
-        assert tile_name in self.tile_names
-        assert date in self.dates
-
-        if self.verbose:
-            print(f"Loading imagery for {tile_name} at {date}")
-
-        img = torch.zeros(
-            len(bands), self.tile_height, self.tile_width, dtype=torch.float32
-        )
-        for band_index, band_name in enumerate(self.bands):
-            filepath = os.path.join(
-                self.root,
-                "ref_african_crops_kenya_02_source",
-                f"{tile_name}_{date}",
-                f"{band_name}.tif",
-            )
-            with Image.open(filepath) as band_img:
-                array: "np.typing.NDArray[np.int_]" = np.array(band_img)
-                img[band_index] = torch.from_numpy(array)
-
-        return img
 
     def _verify(self) -> None:
         """Verify the integrity of the dataset.
