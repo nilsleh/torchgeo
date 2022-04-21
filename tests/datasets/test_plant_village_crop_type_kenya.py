@@ -64,12 +64,12 @@ class TestPlantVillageCropTypeKenya:
         image_meta = {
             "filename": "ref_african_crops_kenya_01_source.tar.gz",
             "directory": "ref_african_crops_kenya_01_source",
-            "md5": "c671e78a75baf1ae3517790bea7022ce",
+            "md5": "a2d34a0d714c3e128c9e50ec8aa1decc",
         }
         target_meta = {
             "filename": "ref_african_crops_kenya_01_labels.tar.gz",
             "directory": "ref_african_crops_kenya_01_labels",
-            "md5": "4f84da480ae767cf4ac2a11d5f783b64",
+            "md5": "17a28ba9b38073ca4f1610b3dc9dbb91",
         }
         monkeypatch.setattr(PlantVillageCropTypeKenya, "image_meta", image_meta)
         monkeypatch.setattr(PlantVillageCropTypeKenya, "target_meta", target_meta)
