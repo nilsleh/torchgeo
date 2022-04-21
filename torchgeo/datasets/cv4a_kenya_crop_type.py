@@ -31,6 +31,7 @@ from .utils import (
     percentile_normalization,
 )
 
+
 class CV4AKenyaCropType(GeoDataset):
     """CV4A Kenya Crop Type dataset.
 
@@ -114,7 +115,6 @@ class CV4AKenyaCropType(GeoDataset):
 
     RGB_BANDS = ["B04", "B03", "B02"]
 
-
     def __init__(
         self,
         root: str = "data",
@@ -169,6 +169,7 @@ class CV4AKenyaCropType(GeoDataset):
             )
             label_path = label_path.replace("_01_source_", "_01_labels_")
             import pdb
+
             pdb.set_trace()
             if i == 0:
                 with open(label_path) as label_file:
@@ -214,9 +215,6 @@ class CV4AKenyaCropType(GeoDataset):
         self._crs = cast(CRS, crs)
         self.res = cast(float, res)
 
-
-
-
     def __getitem__(self, index: int) -> Dict[str, Tensor]:
         """Return an index within the dataset.
 
@@ -231,7 +229,6 @@ class CV4AKenyaCropType(GeoDataset):
             sample = self.transforms(sample)
 
         return sample
-
 
     @lru_cache(maxsize=128)
     def _load_label_tile(self, tile_name: str) -> Tuple[Tensor, Tensor]:
