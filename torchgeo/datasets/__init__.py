@@ -35,6 +35,7 @@ from .eudem import EUDEM
 from .eurosat import EuroSAT
 from .fair1m import FAIR1M
 from .forestdamage import ForestDamage
+from .forestnet import ForestNetDataset
 from .geo import (
     GeoDataset,
     IntersectionDataset,
@@ -148,6 +149,7 @@ __all__ = (
     "EuroSAT",
     "FAIR1M",
     "ForestDamage",
+    "ForestNetDataset",
     "GID15",
     "IDTReeS",
     "InriaAerialImageLabeling",
