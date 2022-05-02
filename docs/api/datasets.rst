@@ -197,6 +197,10 @@ NASA Marine Debris
 
 .. autoclass:: NASAMarineDebris
 
+New Zealand Cattle Detection
+
+.. autoclass:: NewZealandCattleDetection
+
 OSCD (Onera Satellite Change Detection)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

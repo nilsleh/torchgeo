@@ -66,6 +66,7 @@ from .levircd import LEVIRCDPlus
 from .loveda import LoveDA
 from .naip import NAIP
 from .nasa_marine_debris import NASAMarineDebris
+from .new_zealand_cattle_detection import NewZealandCattleDetection
 from .nwpu import VHR10
 from .openbuildings import OpenBuildings
 from .oscd import OSCD
@@ -155,6 +156,7 @@ __all__ = (
     "LEVIRCDPlus",
     "LoveDA",
     "NASAMarineDebris",
+    "NewZealandCattleDetection",
     "OSCD",
     "PatternNet",
     "Potsdam2D",
