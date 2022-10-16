@@ -76,10 +76,12 @@ class OSCDDataModule(pl.LightningDataModule):
 
         Args:
             train_batch_size: The batch size used in the train DataLoader
-                (val_batch_size == test_batch_size == 1)
+                (val_batch_size == test_batch_size == 1). The effective batch size
+                will be 'train_batch_size' * 'num_patches_per_tile'
             num_workers: The number of workers to use in all created DataLoaders
             val_split_pct: What percentage of the dataset to use as a validation set
-            patch_size: Size of random patch from image and mask (height, width)
+            patch_size: Size of random patch from image and mask (height, width), should
+                be a multiple of 32 for most segmentation architectures
             num_patches_per_tile: number of random patches per sample
             pad_size: size to pad images to during val/test steps
             **kwargs: Additional keyword arguments passed to
@@ -126,6 +128,14 @@ class OSCDDataModule(pl.LightningDataModule):
         """
 
         def n_random_crop(sample: Dict[str, Any]) -> Dict[str, Any]:
+            """Construct 'num_patches_per_tile' random patches of input tile.
+
+            Args:
+                sample: contains image and mask tile from dataset
+
+            Returns:
+                stacked randomly cropped patches from input tile
+            """
             images, masks = [], []
             for i in range(self.num_patches_per_tile):
                 mask = repeat(sample["mask"], "h w -> t h w", t=2).float()
@@ -138,6 +148,14 @@ class OSCDDataModule(pl.LightningDataModule):
             return sample
 
         def pad_to(sample: Dict[str, Any]) -> Dict[str, Any]:
+            """Pad image and mask to desired size of 'pad_size'.
+
+            Args:
+                sample: contains image and mask sample from dataset
+
+            Returns:
+                padded image and mask
+            """
             sample["image"] = self.padto(sample["image"])[0]
             sample["mask"] = self.padto(sample["mask"].float()).long()[0, 0]
             return sample
@@ -167,9 +185,22 @@ class OSCDDataModule(pl.LightningDataModule):
         )
 
     def train_dataloader(self) -> DataLoader[Any]:
-        """Return a DataLoader for training."""
+        """Return a DataLoader for training.
+
+        Returns:
+            training data loader
+        """
 
         def collate_wrapper(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+            """Define collate function to combine patches per tile and batch size.
+
+            Args:
+                batch: sample batch from dataloader containing image and mask
+
+            Returns:
+                sample batch where the batch dimension is
+                'train_batch_size' * 'num_patches_per_tile'
+            """
             r_batch: Dict[str, Any] = default_collate(  # type: ignore[no-untyped-call]
                 batch
             )
@@ -186,13 +217,21 @@ class OSCDDataModule(pl.LightningDataModule):
         )
 
     def val_dataloader(self) -> DataLoader[Any]:
-        """Return a DataLoader for validation."""
+        """Return a DataLoader for validation.
+
+        Returns:
+            validation data loader
+        """
         return DataLoader(
             self.val_dataset, batch_size=1, num_workers=self.num_workers, shuffle=False
         )
 
     def test_dataloader(self) -> DataLoader[Any]:
-        """Return a DataLoader for testing."""
+        """Return a DataLoader for testing.
+
+        Returns:
+            testing data loader
+        """
         return DataLoader(
             self.test_dataset, batch_size=1, num_workers=self.num_workers, shuffle=False
         )
