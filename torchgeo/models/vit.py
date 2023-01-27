@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 import kornia.augmentation as K
 import timm
+import torch.nn as nn
 from timm.models.vision_transformer import VisionTransformer
 from torchvision.models._api import Weights, WeightsEnum
 
@@ -24,8 +25,63 @@ _zhu_xlab_transforms = AugmentationSequential(
 Weights.__deepcopy__ = lambda *args, **kwargs: args[0]
 
 
+class ViTBase16_Weights(WeightsEnum):
+    """Vision Transformer Base Patch Size 16 weights.
+
+    For `timm <https://github.com/rwightman/pytorch-image-models>`_
+    *vit_base_patch16_224* implementation
+
+    .. versionadded:: 0.5
+    """
+
+    MILLIONAID_RGB_MAE = Weights(
+        url="https://b0pa3a.sn.files.1drv.com/y4mj8iuap1RUKh2B6xpiF0XIQJR7Rg_sDaLVZtwSrzsc3sN2SCfK4sJOoaw1y3Gfa9cDzzE9l6FXwz4gsYniaYWS-elcgoDkqPWc5_oTslF9cJUuXOQNZOhKhiRacfEwpVBUxg3gcvuHgdE9tZM4pZzgAGxiD9epuDkxBjI04bbspDqEWfTOctzNM_eqNXaYDouD00xtCDlInTg2ZlOoPkU4g",
+        transforms=nn.Identity(),
+        meta={
+            "dataset": "MillionAID",
+            "in_chans": 3,
+            "model": "vit_base_patch16_224",
+            "publication": "https://arxiv.org/abs/2208.03987",
+            "repo": "https://github.com/ViTAE-Transformer/Remote-Sensing-RVSA",
+            "ssl_method": "mae",
+        },
+    )
+
+
+def vit_base_patch16_224(
+    weights: Optional[ViTBase16_Weights] = None, *args: Any, **kwargs: Any
+) -> VisionTransformer:
+    """Vision Transform (ViT) base patch size 16 model.
+
+    If you use this model in your research, please cite the following paper:
+
+    * https://arxiv.org/abs/2010.11929
+
+    .. versionadded:: 0.5
+
+    Args:
+        weights: Pre-trained model weights to use.
+        *args: Additional arguments to pass to :func:`timm.create_model`.
+        **kwargs: Additional keywork arguments to pass to :func:`timm.create_model`.
+
+    Returns:
+        A ViT small 16 model.
+    """
+    if weights:
+        kwargs["in_chans"] = weights.meta["in_chans"]
+
+    model: VisionTransformer = timm.create_model(
+        "vit_base_patch16_224", *args, **kwargs
+    )
+
+    if weights:
+        model.load_state_dict(weights.get_state_dict(progress=True), strict=False)
+
+    return model
+
+
 class ViTSmall16_Weights(WeightsEnum):  # type: ignore[misc]
-    """Vision Transformer Samll Patch Size 16 weights.
+    """Vision Transformer Small Patch Size 16 weights.
 
     For `timm <https://github.com/rwightman/pytorch-image-models>`_
     *vit_small_patch16_224* implementation.
