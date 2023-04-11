@@ -54,6 +54,7 @@ from .idtrees import IDTReeS
 from .inaturalist import INaturalist
 from .inria import InriaAerialImageLabeling
 from .landcoverai import LandCoverAI, LandCoverAIBase, LandCoverAIGeo
+from .landcovernet import LandCoverNet
 from .landsat import (
     Landsat,
     Landsat1,
@@ -175,6 +176,7 @@ __all__ = (
     "IDTReeS",
     "InriaAerialImageLabeling",
     "LandCoverAI",
+    "LandCoverNet",
     "LEVIRCDPlus",
     "LoveDA",
     "MillionAID",
