@@ -4,9 +4,9 @@ set -euo pipefail
 
 # User-specific parameters
 ROOT_DIR=data
-SRC_DIR="$ROOT_DIR/ssl4eo-l7-l2"
-DST_DIR="$ROOT_DIR/ssl4eo-l7-l2-v2"
-NUM_WORKERS=40
+SRC_DIR="$ROOT_DIR/ssl4eo-l7-l2-conus"
+DST_DIR="$ROOT_DIR/ssl4eo-l7-l2-conus-v2"
+NUM_WORKERS=20
 
 # Satellite-specific parameters
 # https://www.usgs.gov/faqs/how-do-i-use-scale-factor-landsat-level-2-science-products
