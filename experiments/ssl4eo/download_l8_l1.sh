@@ -7,7 +7,7 @@ set -euo pipefail
 
 # User-specific parameters
 ROOT_DIR=data
-SAVE_PATH="$ROOT_DIR/ssl4eo-l8-l1-conus"
+SAVE_PATH="$ROOT_DIR/ssl4eo-l8-l1-conus-nodata"
 MATCH_FILE="$ROOT_DIR/ssl4eo-l-conus/sampled_locations.csv"
 NUM_WORKERS=20
 START_INDEX=0
@@ -23,7 +23,7 @@ RES=30
 BANDS=(B1 B2 B3 B4 B5 B6 B7 B8 B9 B10 B11)
 ORIGINAL_RESOLUTIONS=(30 30 30 30 30 30 30 15 30 30 30)
 NEW_RESOLUTIONS=30
-DEFAULT_VALUE=-9999
+# DEFAULT_VALUE=-9999
 
 # Generic parameters
 SCRIPT_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)
@@ -45,7 +45,6 @@ time python3 "$SCRIPT_DIR/download_ssl4eo.py" \
     --original-resolutions ${ORIGINAL_RESOLUTIONS[@]} \
     --new-resolutions $NEW_RESOLUTIONS \
     --dtype $DTYPE \
-    --default-value $DEFAULT_VALUE \
     --num-workers $NUM_WORKERS \
     --log-freq $LOG_FREQ \
     --match-file "$MATCH_FILE" \
