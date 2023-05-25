@@ -17,7 +17,7 @@ datamodule:
   root: "/mnt/SSD2/nils/torchgeo/experiments/ssl4eo/downstream"
   input_sensor: tm_toa
   mask_product: nlcd
-  batch_size: 256
+  batch_size: 512
   num_workers: 6
 
 trainer:
@@ -27,6 +27,7 @@ trainer:
     - 0
   min_epochs: 50
   max_epochs: 100
+  precision: 16
 
 program:
   seed: 0
