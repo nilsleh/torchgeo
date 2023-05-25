@@ -104,6 +104,7 @@ from .splits import (
     roi_split,
     time_series_split,
 )
+from .ssl4eo_benchmark_landsat import SSL4EOLBenchmark
 from .ssl4eo import SSL4EO, SSL4EOL, SSL4EOS12
 from .sustainbench_crop_yield import SustainBenchCropYield
 from .ucmerced import UCMerced
@@ -209,6 +210,7 @@ __all__ = (
     "SpaceNet5",
     "SpaceNet6",
     "SpaceNet7",
+    "SSL4EOLBenchmark",
     "SSL4EO",
     "SSL4EOL",
     "SSL4EOS12",

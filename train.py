@@ -8,11 +8,12 @@
 import os
 from typing import cast
 
+import torch
 import lightning.pytorch as pl
 from hydra.utils import instantiate
 from lightning.pytorch import LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
-from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger
+from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger, WandbLogger
 from omegaconf import DictConfig, OmegaConf
 
 from torchgeo.datamodules import MisconfigurationException
@@ -59,9 +60,13 @@ def set_up_omegaconf() -> DictConfig:
 
 def main(conf: DictConfig) -> None:
     """Main training loop."""
-    experiment_name = (
-        f"{conf.datamodule._target_.lower()}_{conf.module._target_.lower()}"
-    )
+    torch.set_float32_matmul_precision('medium')
+    if conf.program.experiment_name is not None:
+        experiment_name = conf.program.experiment_name
+    else:
+        experiment_name = (
+            f"{conf.datamodule._target_.lower()}_{conf.module._target_.lower()}"
+        )
     if os.path.isfile(conf.program.output_dir):
         raise NotADirectoryError("`program.output_dir` must be a directory")
     os.makedirs(conf.program.output_dir, exist_ok=True)
@@ -89,7 +94,12 @@ def main(conf: DictConfig) -> None:
     task: LightningModule = instantiate(conf.module)
 
     # Define callbacks
-    tb_logger = TensorBoardLogger(conf.program.log_dir, name=experiment_name)
+    # tb_logger = TensorBoardLogger(conf.program.log_dir, name=experiment_name)
+    wandb_logger = WandbLogger(
+        project="ssl4eo",
+        save_dir=conf.program.log_dir,
+        name=experiment_name,
+    )
     csv_logger = CSVLogger(conf.program.log_dir, name=experiment_name)
 
     if isinstance(task, ObjectDetectionTask):
@@ -118,7 +128,7 @@ def main(conf: DictConfig) -> None:
     trainer: Trainer = instantiate(
         conf.trainer,
         callbacks=[checkpoint_callback, early_stopping_callback],
-        logger=[tb_logger, csv_logger],
+        logger=[wandb_logger, csv_logger],
         default_root_dir=experiment_dir,
     )
 
