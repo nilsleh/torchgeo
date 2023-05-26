@@ -6,8 +6,8 @@ module:
   weights: true
   learning_rate: 1e-4
   learning_rate_schedule_patience: 6
-  in_channels: 6
-  num_classes: 17
+  in_channels: 7
+  num_classes: 134
   num_filters: 64
   ignore_index: 0
   weight_decay: 0
@@ -15,8 +15,8 @@ module:
 datamodule:
   _target_: torchgeo.datamodules.SSL4EOLBenchmarkDataModule
   root: "/mnt/SSD2/nils/torchgeo/experiments/ssl4eo/downstream"
-  input_sensor: etm_sr
-  mask_product: nlcd
+  input_sensor: tm_toa
+  mask_product: cdl
   batch_size: 512
   num_workers: 6
 
@@ -31,7 +31,7 @@ trainer:
 
 program:
   seed: 0
-  output_dir: output/etm_sr_nlcd/
-  log_dir: logs/etm_sr_nlcd/
+  output_dir: output/tm_toa_cdl/
+  log_dir: logs/tm_toa_cdl/
   overwrite: True
-  experiment_name: test_downstream_etm_sr
+  experiment_name: test_downstream_tm_toa

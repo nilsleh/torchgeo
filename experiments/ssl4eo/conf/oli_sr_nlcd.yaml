@@ -27,6 +27,7 @@ trainer:
     - 0
   min_epochs: 50
   max_epochs: 100
+  precision: 16
 
 program:
   seed: 0

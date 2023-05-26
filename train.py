@@ -61,6 +61,8 @@ def set_up_omegaconf() -> DictConfig:
 def main(conf: DictConfig) -> None:
     """Main training loop."""
     torch.set_float32_matmul_precision('medium')
+    import os
+    os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
     if conf.program.experiment_name is not None:
         experiment_name = conf.program.experiment_name
     else:

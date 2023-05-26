@@ -11,12 +11,12 @@ from multiprocessing import Process, Queue
 # list of GPU IDs that we want to use, one job will be started for every ID in the list
 GPUS = [4]
 DRY_RUN = False  # if False then print out the commands to be run, if True then run
-conf_file_name = "tm_toa_nlcd.yaml"
+conf_file_name = "etm_toa_nlcd.yaml"
 
 # Hyperparameter options
 model_options = ["unet", "fcn"]
 backbone_options = ["resnet18"]
-lr_options = [0.001, 0.0003, 0.0001]
+lr_options = [0.001, 0.0001]
 loss_options = ["ce"]
 wd_options = [0, 0.1, 0.01]
 weight_options = [True, False]
