@@ -2,20 +2,20 @@ module:
   _target_: torchgeo.trainers.SemanticSegmentationTask
   loss: "ce"
   model: "unet"
-  backbone: "resnet18"
-  weights: true
-  learning_rate: 1e-4
+  backbone: "resnet50"
+  weights: false
+  learning_rate: 0.001
   learning_rate_schedule_patience: 6
-  in_channels: 7
+  in_channels: 11
   num_classes: 17
   num_filters: 64
   ignore_index: 0
-  weight_decay: 0
+  weight_decay: 0.01
 
 datamodule:
   _target_: torchgeo.datamodules.SSL4EOLBenchmarkDataModule
   root: "/mnt/SSD2/nils/torchgeo/experiments/ssl4eo/downstream"
-  input_sensor: tm_toa
+  input_sensor: oli_tirs_toa
   mask_product: nlcd
   batch_size: 512
   num_workers: 6
@@ -31,7 +31,7 @@ trainer:
 
 program:
   seed: 0
-  output_dir: output/tm_toa_nlcd/
-  log_dir: logs/tm_toa_nlcd/
+  output_dir: output/oli_tirs_toa_nlcd/
+  log_dir: logs/oli_tirs_toa_nlcd/
   overwrite: True
-  experiment_name: test_downstream_tm_toa
+  experiment_name: test_downstream_oli_tirs_toa_nlcd

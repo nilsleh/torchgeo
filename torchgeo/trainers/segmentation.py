@@ -4,6 +4,8 @@
 """Segmentation tasks."""
 
 import os
+import wandb
+
 import warnings
 from typing import Any, cast
 
@@ -215,7 +217,11 @@ class SemanticSegmentationTask(LightningModule):  # type: ignore[misc]
         y_hat = self(x)
         y_hat_hard = y_hat.argmax(dim=1)
 
-        loss = self.loss(y_hat, y)
+        try:
+            loss = self.loss(y_hat, y)
+        except:
+            import pdb
+            pdb.set_trace
 
         # by default, the train step logs every `log_every_n_steps` steps where
         # `log_every_n_steps` is a parameter to the `Trainer` object
@@ -286,6 +292,15 @@ class SemanticSegmentationTask(LightningModule):  # type: ignore[misc]
         y = batch["mask"]
         y_hat = self(x)
         y_hat_hard = y_hat.argmax(dim=1)
+
+        pred_mask = y_hat_hard[0, ...].detach().cpu().numpy()
+        gt_mask = y[0,...].detach().cpu().numpy()
+        rgb_image_indices = self.trainer.datamodule.test_dataset.rgb_indices[self.trainer.datamodule.test_dataset.input_sensor]
+        rgb_image = x[0, ...][rgb_image_indices, ...].permute(1, 2, 0).detach().cpu().numpy()
+        image = wandb.Image(
+            rgb_image, masks={"predictions": {"mask_data": pred_mask}, "ground_truth": {"mask_data": gt_mask}}
+        )
+        wandb.log({"segmentation_images": image})
 
         loss = self.loss(y_hat, y)
 

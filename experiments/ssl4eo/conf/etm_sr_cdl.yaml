@@ -17,8 +17,9 @@ datamodule:
   root: "/mnt/SSD2/nils/torchgeo/experiments/ssl4eo/downstream"
   input_sensor: etm_sr
   mask_product: cdl
+  download: True
   batch_size: 512
-  num_workers: 6
+  num_workers: 4
 
 trainer:
   _target_: lightning.pytorch.Trainer

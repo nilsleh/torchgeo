@@ -3,11 +3,11 @@ module:
   loss: "ce"
   model: "unet"
   backbone: "resnet18"
-  weights: true
-  learning_rate: 1e-4
+  weights: false
+  learning_rate: 0.01
   learning_rate_schedule_patience: 6
   in_channels: 9
-  num_classes: 134
+  num_classes: 17
   num_filters: 64
   ignore_index: 0
   weight_decay: 0
@@ -16,7 +16,7 @@ datamodule:
   _target_: torchgeo.datamodules.SSL4EOLBenchmarkDataModule
   root: "/mnt/SSD2/nils/torchgeo/experiments/ssl4eo/downstream"
   input_sensor: etm_toa
-  mask_product: cdl
+  mask_product: nlcd
   batch_size: 512
   num_workers: 4
 
@@ -31,7 +31,7 @@ trainer:
 
 program:
   seed: 0
-  output_dir: output/etm_toa_cdl/
-  log_dir: logs/etm_toa_cdl/
+  output_dir: output/etm_toa_nlcd/
+  log_dir: logs/etm_toa_nlcd/
   overwrite: True
   experiment_name: test_downstream_etm_toa

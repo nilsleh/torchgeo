@@ -9,16 +9,16 @@ import subprocess
 from multiprocessing import Process, Queue
 
 # list of GPU IDs that we want to use, one job will be started for every ID in the list
-GPUS = [4]
+GPUS = [0]
 DRY_RUN = False  # if False then print out the commands to be run, if True then run
-conf_file_name = "etm_toa_nlcd.yaml"
+conf_file_name = "oli_tirs_toa_cdl.yaml"
 
 # Hyperparameter options
-model_options = ["unet", "fcn"]
+model_options = ["unet"]
 backbone_options = ["resnet18"]
-lr_options = [0.001, 0.0001]
+lr_options = [0.01, 0.003, 0.0003]
 loss_options = ["ce"]
-wd_options = [0, 0.1, 0.01]
+wd_options = [0, 0.01]
 weight_options = [True, False]
 
 
@@ -50,7 +50,7 @@ if __name__ == "__main__":
         if model != "unet":
             experiment_name = f"{conf_file_name.split('.')[0]}_{model}_{backbone}_{lr}_{loss}_{wd}_{weights}"
         else:
-            experiment_name = f"{conf_file_name.split('.')[0]}_{model}_{lr}_{loss}_{wd}_{weights}"
+            experiment_name = f"{conf_file_name.split('.')[0]}_{model}_{backbone}_{lr}_{loss}_{wd}_{weights}"
 
         config_file = os.path.join("/mnt/SSD2/nils/torchgeo/experiments/ssl4eo/conf", conf_file_name)
 

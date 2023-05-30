@@ -7,6 +7,7 @@
 
 import os
 from typing import cast
+import wandb
 
 import torch
 import lightning.pytorch as pl
@@ -142,6 +143,8 @@ def main(conf: DictConfig) -> None:
         trainer.test(ckpt_path="best", datamodule=datamodule)
     except MisconfigurationException:
         pass
+
+    wandb.finish()
 
 
 if __name__ == "__main__":
