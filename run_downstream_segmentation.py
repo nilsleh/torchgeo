@@ -9,16 +9,16 @@ import subprocess
 from multiprocessing import Process, Queue
 
 # list of GPU IDs that we want to use, one job will be started for every ID in the list
-GPUS = [0]
+GPUS = [1, 2, 3, 4]
 DRY_RUN = False  # if False then print out the commands to be run, if True then run
-conf_file_name = "oli_tirs_toa_cdl.yaml"
+conf_file_name = "etm_sr_cdl.yaml"
 
 # Hyperparameter options
 model_options = ["unet"]
-backbone_options = ["resnet18"]
-lr_options = [0.01, 0.003, 0.0003]
+backbone_options = ["resnet18", "resnet50"]
+lr_options = [0.003, 0.0001]
 loss_options = ["ce"]
-wd_options = [0, 0.01]
+wd_options = [0, 0.001]
 weight_options = [True, False]
 
 

@@ -18,6 +18,7 @@ from .cdl import CDL
 from .geo import NonGeoDataset
 from .nlcd import NLCD
 from .utils import download_url, extract_archive
+import time
 
 
 class SSL4EOLBenchmark(NonGeoDataset):
@@ -102,6 +103,9 @@ class SSL4EOLBenchmark(NonGeoDataset):
 
     cmaps = {"nlcd": NLCD.cmap, "cdl": CDL.cmap}
 
+    map_array = torch.arange(0, 255)
+    ord_labels = torch.from_numpy(np.array(list(ordinal_label_map["cdl"].values())))
+
     def __init__(
         self,
         root: str = "data",
@@ -167,6 +171,14 @@ class SSL4EOLBenchmark(NonGeoDataset):
         ]
 
         self.sample_collection = [self.sample_collection[idx] for idx in split_indices]
+
+        map_array = torch.arange(0, 255)
+        # ord_labels = torch.from_numpy(np.array(list(self.ordinal_label_map[self.input_sensor].values())))
+        for k, v in self.ordinal_label_map[self.mask_product].items():
+            map_array[map_array == k] = v
+
+        # map_array = map_array.unsqueeze(-1).unsqueeze(-1)
+        self.map_array = map_array.long()
 
     def _verify(self) -> None:
         """Verify the integrity of the dataset.
@@ -306,11 +318,10 @@ class SSL4EOLBenchmark(NonGeoDataset):
         """
         with rasterio.open(path) as src:
             mask = src.read()
-
-        for k, v in self.ordinal_label_map[self.mask_product].items():
-            mask[mask == k] = v
-
-        return torch.from_numpy(mask).long()
+        
+        mask = torch.from_numpy(mask).long()
+        mask = self.map_array[mask]
+        return mask
 
     def plot(
         self,
