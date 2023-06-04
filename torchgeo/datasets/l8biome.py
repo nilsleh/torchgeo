@@ -20,8 +20,9 @@ class L8Biome(RasterDataset):
     """L8 Biome dataset.
 
     The `L8 Biome <https://landsat.usgs.gov/landsat-8-cloud-cover-assessment-validation-data>`__
-    dataset is a cloud validation dataset of Pre-Collection Landsat 8 Operational Land
-    Imager (OLI) Thermal Infrared Sensor (TIRS) terrain-corrected (Level-1T) scenes.
+    dataset is a validation dataset for cloud cover assessment algorithms, consisting
+    of Pre-Collection Landsat 8 Operational Land Imager (OLI) Thermal Infrared Sensor
+    (TIRS) terrain-corrected (Level-1T) scenes.
 
     Dataset features:
 
@@ -249,17 +250,18 @@ class L8Biome(RasterDataset):
             predictions = sample["prediction"].numpy().astype("uint8").squeeze()
             num_panels += 1
 
+        kwargs = {"cmap": "gray", "vmin": 0, "vmax": 4, "interpolation": "none"}
         fig, axs = plt.subplots(1, num_panels, figsize=(num_panels * 4, 5))
         axs[0].imshow(image)
         axs[0].axis("off")
-        axs[1].imshow(mask, vmin=0, vmax=4, cmap="gray")
+        axs[1].imshow(mask, **kwargs)
         axs[1].axis("off")
         if show_titles:
             axs[0].set_title("Image")
             axs[1].set_title("Mask")
 
         if showing_predictions:
-            axs[2].imshow(predictions, vmin=0, vmax=4, cmap="gray")
+            axs[2].imshow(predictions, **kwargs)
             axs[2].axis("off")
             if show_titles:
                 axs[2].set_title("Predictions")
