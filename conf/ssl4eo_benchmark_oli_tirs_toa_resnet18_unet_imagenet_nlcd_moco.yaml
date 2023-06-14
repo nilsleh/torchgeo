@@ -2,9 +2,9 @@ module:
   _target_: torchgeo.trainers.SemanticSegmentationTask
   model: "unet"
   backbone: "resnet18"
-  weights: true
+  weights: /mnt/SSD2/nils/torchgeo/experiments/ssl4eo/checkpoints/ssl4eo-l-oli-tirs-toa-mocov2-resnet18_backbone.ckpt
   learning_rate: 0.001
-  in_channels: 7
+  in_channels: 11
   num_classes: 14
   loss: "ce"
   class_weights: [0, 0.00640476, 0.11232852, 0.12934777, 0.05883383, 0.10792264, 0.00483846, 0.05689931, 0.0196849, 0.04278681, 0.05963887, 0.08670033, 0.1356737, 0.17894011]
@@ -12,14 +12,16 @@ module:
   num_filters: 64
   ignore_index: 0
   weight_decay: 0
+  freeze_backbone: True
 
 datamodule:
   _target_: torchgeo.datamodules.SSL4EOLBenchmarkDataModule
   root: "/mnt/SSD2/nils/torchgeo/experiments/ssl4eo/downstream"
-  input_sensor: oli_sr
-  mask_product: nlcd
-  batch_size: 512
-  num_workers: 6
+  sensor: oli_tirs_toa
+  product: nlcd
+  batch_size: 256
+  classes: [0, 11, 21, 22, 31, 41, 42, 43, 52, 71, 81, 82, 90, 95]
+  num_workers: 4
 
 trainer:
   _target_: lightning.pytorch.Trainer
@@ -28,11 +30,10 @@ trainer:
     - 0
   min_epochs: 50
   max_epochs: 100
-  precision: 16
 
 program:
   seed: 0
-  output_dir: output/oli_sr_nlcd/
-  log_dir: logs/oli_sr_nlcd/
+  output_dir: output/oli_tirs_toa_nlcd/
+  log_dir: logs/oli_tirs_toa_nlcd/
   overwrite: True
-  experiment_name: test_downstream_oli_sr
+  experiment_name: test_downstream_oli_tirs_toa

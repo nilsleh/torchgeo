@@ -100,9 +100,6 @@ class SSL4EOLBenchmark(NonGeoDataset):
 
     cmaps = {"nlcd": NLCD.cmap, "cdl": CDL.cmap}
 
-    map_array = torch.arange(0, 255)
-    ord_labels = torch.from_numpy(np.array(list(ordinal_label_map["cdl"].values())))
-
     def __init__(
         self,
         root: str = "data",
@@ -367,8 +364,9 @@ class SSL4EOLBenchmark(NonGeoDataset):
             ax[2].imshow(self.ordinal_cmap[pred], interpolation="none")
             if show_titles:
                 ax[2].set_title("Prediction")
+                ax[2].axis("off")
 
         if suptitle is not None:
             plt.suptitle(suptitle)
-
+        plt.tight_layout()
         return fig

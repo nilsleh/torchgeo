@@ -62,6 +62,7 @@ def set_up_omegaconf() -> DictConfig:
 def main(conf: DictConfig) -> None:
     """Main training loop."""
     torch.set_float32_matmul_precision('medium')
+    torch.set_num_threads(conf.datamodule.num_workers)
     import os
     os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
     if conf.program.experiment_name is not None:
@@ -99,7 +100,7 @@ def main(conf: DictConfig) -> None:
     # Define callbacks
     # tb_logger = TensorBoardLogger(conf.program.log_dir, name=experiment_name)
     wandb_logger = WandbLogger(
-        project="ssl4eo",
+        project="final_ssl4eo",
         save_dir=conf.program.log_dir,
         name=experiment_name,
     )

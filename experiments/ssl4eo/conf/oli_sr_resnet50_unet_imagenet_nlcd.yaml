@@ -7,8 +7,9 @@ module:
   learning_rate: 0.003
   learning_rate_schedule_patience: 6
   in_channels: 7
-  num_classes: 17
+  num_classes: 14
   num_filters: 64
+  class_weights: [0, 0.00640476, 0.11232852, 0.12934777, 0.05883383, 0.10792264, 0.00483846, 0.05689931, 0.0196849, 0.04278681, 0.05963887, 0.08670033, 0.1356737, 0.17894011]
   ignore_index: 0
   weight_decay: 0.01
 

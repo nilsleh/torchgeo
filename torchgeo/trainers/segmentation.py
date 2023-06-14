@@ -38,12 +38,21 @@ class SemanticSegmentationTask(LightningModule):  # type: ignore[misc]
         """Configures the task based on kwargs parameters passed to the constructor."""
         weights = self.hyperparams["weights"]
 
+        if self.hyperparams["backbone"].startswith("tu-vit"):
+            encoder_depth = 4
+            decoder_channels = (256, 128, 64, 32)
+        else:
+            encoder_depth = 5
+            decoder_channels = (256, 128, 64, 32, 16)
+
         if self.hyperparams["model"] == "unet":
             self.model = smp.Unet(
                 encoder_name=self.hyperparams["backbone"],
                 encoder_weights="imagenet" if weights is True else None,
                 in_channels=self.hyperparams["in_channels"],
                 classes=self.hyperparams["num_classes"],
+                encoder_depth = encoder_depth,
+                decoder_channels= decoder_channels
             )
         elif self.hyperparams["model"] == "deeplabv3+":
             self.model = smp.DeepLabV3Plus(
@@ -51,6 +60,8 @@ class SemanticSegmentationTask(LightningModule):  # type: ignore[misc]
                 encoder_weights="imagenet" if weights is True else None,
                 in_channels=self.hyperparams["in_channels"],
                 classes=self.hyperparams["num_classes"],
+                encoder_depth = encoder_depth,
+                decoder_channels= decoder_channels
             )
         elif self.hyperparams["model"] == "fcn":
             self.model = FCN(
@@ -217,11 +228,7 @@ class SemanticSegmentationTask(LightningModule):  # type: ignore[misc]
         y_hat = self(x)
         y_hat_hard = y_hat.argmax(dim=1)
 
-        try:
-            loss = self.loss(y_hat, y)
-        except:
-            import pdb
-            pdb.set_trace
+        loss = self.loss(y_hat, y)
 
         # by default, the train step logs every `log_every_n_steps` steps where
         # `log_every_n_steps` is a parameter to the `Trainer` object
@@ -293,14 +300,14 @@ class SemanticSegmentationTask(LightningModule):  # type: ignore[misc]
         y_hat = self(x)
         y_hat_hard = y_hat.argmax(dim=1)
 
-        pred_mask = y_hat_hard[0, ...].detach().cpu().numpy()
-        gt_mask = y[0,...].detach().cpu().numpy()
-        rgb_image_indices = self.trainer.datamodule.test_dataset.rgb_indices[self.trainer.datamodule.test_dataset.input_sensor]
-        rgb_image = x[0, ...][rgb_image_indices, ...].permute(1, 2, 0).detach().cpu().numpy()
-        image = wandb.Image(
-            rgb_image, masks={"predictions": {"mask_data": pred_mask}, "ground_truth": {"mask_data": gt_mask}}
-        )
-        wandb.log({"segmentation_images": image})
+        # pred_mask = y_hat_hard[0, ...].detach().cpu().numpy()
+        # gt_mask = y[0,...].detach().cpu().numpy()
+        # rgb_image_indices = self.trainer.datamodule.test_dataset.rgb_indices[self.trainer.datamodule.test_dataset.input_sensor]
+        # rgb_image = x[0, ...][rgb_image_indices, ...].permute(1, 2, 0).detach().cpu().numpy()
+        # image = wandb.Image(
+        #     rgb_image, masks={"predictions": {"mask_data": pred_mask}, "ground_truth": {"mask_data": gt_mask}}
+        # )
+        # wandb.log({"segmentation_images": image})
 
         loss = self.loss(y_hat, y)
 
@@ -338,10 +345,8 @@ class SemanticSegmentationTask(LightningModule):  # type: ignore[misc]
         Returns:
             learning rate dictionary
         """
-        optimizer = torch.optim.AdamW(
-            self.model.parameters(),
-            lr=self.hyperparams["learning_rate"],
-            weight_decay=self.hyperparams["weight_decay"],
+        optimizer = torch.optim.Adam(
+            self.model.parameters(), lr=self.hyperparams["learning_rate"]
         )
         return {
             "optimizer": optimizer,
