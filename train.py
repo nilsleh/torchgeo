@@ -99,11 +99,11 @@ def main(conf: DictConfig) -> None:
 
     # Define callbacks
     # tb_logger = TensorBoardLogger(conf.program.log_dir, name=experiment_name)
-    wandb_logger = WandbLogger(
-        project="final_ssl4eo",
-        save_dir=conf.program.log_dir,
-        name=experiment_name,
-    )
+    # wandb_logger = WandbLogger(
+    #     project="final_ssl4eo",
+    #     save_dir=conf.program.log_dir,
+    #     name=experiment_name,
+    # )
     csv_logger = CSVLogger(conf.program.log_dir, name=experiment_name)
 
     if isinstance(task, ObjectDetectionTask):
@@ -124,15 +124,15 @@ def main(conf: DictConfig) -> None:
         save_last=True,
         mode=mode,
     )
-    early_stopping_callback = EarlyStopping(
-        monitor=monitor_metric, min_delta=0.00, patience=18, mode=mode
-    )
+    # early_stopping_callback = EarlyStopping(
+    #     monitor=monitor_metric, min_delta=0.00, patience=18, mode=mode
+    # )
 
     # Define trainer
     trainer: Trainer = instantiate(
         conf.trainer,
-        callbacks=[checkpoint_callback, early_stopping_callback],
-        logger=[wandb_logger, csv_logger],
+        callbacks=[checkpoint_callback],
+        logger=[csv_logger],
         default_root_dir=experiment_dir,
     )
 
@@ -141,7 +141,7 @@ def main(conf: DictConfig) -> None:
 
     # Test
     try:
-        trainer.test(ckpt_path="best", datamodule=datamodule)
+        trainer.test(task, datamodule=datamodule)
     except MisconfigurationException:
         pass
 

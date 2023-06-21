@@ -79,8 +79,8 @@ class L7IrishDataModule(GeoDataModule):
                 self.train_dataset, self.patch_size, self.batch_size, self.length
             )
         if stage in ["fit", "validate"]:
-            self.val_sampler = GridGeoSampler(
-                self.val_dataset, self.patch_size, self.patch_size
+            self.val_batch_sampler = RandomBatchGeoSampler(
+                self.val_dataset, self.patch_size, self.batch_size, int(self.length / 10)
             )
         if stage in ["test"]:
             self.test_sampler = GridGeoSampler(

@@ -12,12 +12,22 @@ module:
 
 datamodule:
   _target_: torchgeo.datamodules.L8BiomeDataModule
-  root: "data/l8biome"
-  batch_size: 64
+  root: "/mnt/SSD2/nils/torchgeo/experiments/ssl4eo/downstream/l8biome"
+  length: 100
+  batch_size: 512
   patch_size: 224
-  num_workers: 16
+  num_workers: 0
+  crs: epsg:3857
 
 trainer:
   _target_: lightning.pytorch.Trainer
-  min_epochs: 20
-  max_epochs: 100
+  accelerator: gpu
+  devices: [3]
+  min_epochs: 1
+  max_epochs: 1
+
+program:
+  output: output/l8biome
+  log: logs/l8biome
+  experiment_name: "test_l8biome"
+  overwrite: True

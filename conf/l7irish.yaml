@@ -12,12 +12,22 @@ module:
 
 datamodule:
   _target_: torchgeo.datamodules.L7IrishDataModule
-  root: "data/l7irish"
+  root: "/mnt/SSD2/nils/torchgeo/experiments/ssl4eo/downstream/l7irish"
+  length: 25000
   batch_size: 64
   patch_size: 224
-  num_workers: 16
+  num_workers: 0
 
 trainer:
   _target_: lightning.pytorch.Trainer
+  accelerator: gpu
+  devices: [0]
   min_epochs: 20
   max_epochs: 100
+
+
+program:
+  output: output/l7irish
+  log: logs/l7irish
+  experiment_name: "test_l7irish"
+  overwrite: True

@@ -350,11 +350,11 @@ class SemanticSegmentationTask(LightningModule):
         )
         return {
             "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": ReduceLROnPlateau(
-                    optimizer,
-                    patience=self.hyperparams["learning_rate_schedule_patience"],
-                ),
-                "monitor": "val_loss",
-            },
+            # "lr_scheduler": {
+            #     "scheduler": ReduceLROnPlateau(
+            #         optimizer,
+            #         patience=self.hyperparams["learning_rate_schedule_patience"],
+            #     ),
+            #     "monitor": "val_loss",
+            # },
         }

@@ -169,7 +169,6 @@ class USAVars(NonGeoDataset):
             "centroid_lat": Tensor([self.label_dfs[self.labels[0]].loc[id_]["lat"]]),
             "centroid_lon": Tensor([self.label_dfs[self.labels[0]].loc[id_]["lon"]]),
         }
-
         if self.transforms is not None:
             sample = self.transforms(sample)
 
@@ -200,7 +199,7 @@ class USAVars(NonGeoDataset):
         """
         with rasterio.open(path) as f:
             array: "np.typing.NDArray[np.int_]" = f.read()
-            tensor = torch.from_numpy(array)
+            tensor = torch.from_numpy(array).float()
             return tensor
 
     def _verify(self) -> None:
