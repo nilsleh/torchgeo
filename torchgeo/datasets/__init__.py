@@ -11,6 +11,7 @@ from .astergdem import AsterGDEM
 from .benin_cashews import BeninSmallHolderCashews
 from .bigearthnet import BigEarthNet
 from .biomassters import BioMassters
+from .bird_detection import BirdDetection
 from .bright import BRIGHTDFC2025
 from .cabuar import CaBuAr
 from .caffe import CaFFe
@@ -185,6 +186,7 @@ __all__ = (
     'BeninSmallHolderCashews',
     'BigEarthNet',
     'BioMassters',
+    'BirdDetection',
     'BoundingBox',
     'CMSGlobalMangroveCanopy',
     'COWCCounting',
