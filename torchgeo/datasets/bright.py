@@ -303,16 +303,14 @@ class BRIGHTDFC2025(NonGeoDataset):
         if showing_mask:
             axs[2].imshow(sample['mask'][0], cmap=cmap, interpolation='none')
             axs[2].axis('off')
-            unique_classes = np.unique(sample['mask'].numpy())
             handles = [
                 mpatches.Patch(
-                    color=cmap(ordinal),
+                    color=cmap(px_class),
                     label='\n'.join(
                         textwrap.wrap(self.px_class_values[px_class], width=10)
                     ),
                 )
-                for ordinal, px_class in enumerate(self.px_class_values.keys())
-                if ordinal in unique_classes
+                for px_class in self.px_class_values.keys()
             ]
             axs[2].legend(handles=handles, loc='upper right', bbox_to_anchor=(1.4, 1))
             if showing_prediction:
