@@ -10,7 +10,6 @@ from typing import ClassVar
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
-import numpy as np
 import rasterio
 import torch
 from einops import repeat
