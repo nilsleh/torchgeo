@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import os
@@ -6,24 +6,23 @@ from collections import OrderedDict
 from pathlib import Path
 
 import pytest
+import timm
 import torch
-import torchvision
 from _pytest.fixtures import SubRequest
 from torch import Tensor
 from torch.nn.modules import Module
 
 
-@pytest.fixture(
-    scope='package', params=[True, pytest.param(False, marks=pytest.mark.slow)]
-)
+@pytest.fixture(params=[True, pytest.param(False, marks=pytest.mark.slow)])
 def fast_dev_run(request: SubRequest) -> bool:
     flag: bool = request.param
     return flag
 
 
 @pytest.fixture(scope='package')
-def model() -> Module:
-    model: Module = torchvision.models.resnet18(weights=None)
+def model(request: SubRequest) -> Module:
+    in_channels = getattr(request, 'param', 3)
+    model: Module = timm.create_model('resnet18', in_chans=in_channels)
     return model
 
 

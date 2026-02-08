@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """MoCo trainer for self-supervised learning (SSL)."""
@@ -6,10 +6,10 @@
 import os
 import warnings
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 import kornia.augmentation as K
-import lightning
+import lightning.pytorch.utilities.types
 import timm
 import torch
 import torch.nn as nn
@@ -23,6 +23,7 @@ from torch.optim import SGD, AdamW, Optimizer
 from torch.optim.lr_scheduler import (
     CosineAnnealingLR,
     LinearLR,
+    LRScheduler,
     MultiStepLR,
     SequentialLR,
 )
@@ -33,11 +34,6 @@ import torchgeo.transforms as T
 from ..models import get_weight
 from . import utils
 from .base import BaseTask
-
-try:
-    from torch.optim.lr_scheduler import LRScheduler
-except ImportError:
-    from torch.optim.lr_scheduler import _LRScheduler as LRScheduler
 
 
 def moco_augmentations(
@@ -238,10 +234,10 @@ class MoCoTask(BaseTask):
         output_dim: int = self.hparams['output_dim']
 
         # Create backbone
-        self.backbone = timm.create_model(  # type: ignore[attr-defined]
+        self.backbone = timm.create_model(
             model, in_chans=in_channels, num_classes=0, pretrained=weights is True
         )
-        self.backbone_momentum = timm.create_model(  # type: ignore[attr-defined]
+        self.backbone_momentum = timm.create_model(
             model, in_chans=in_channels, num_classes=0, pretrained=weights is True
         )
         deactivate_requires_grad(self.backbone_momentum)
@@ -254,12 +250,12 @@ class MoCoTask(BaseTask):
                 _, state_dict = utils.extract_backbone(weights)
             else:
                 state_dict = get_weight(weights).get_state_dict(progress=True)
-            utils.load_state_dict(self.backbone, state_dict)
+            utils.load_state_dict(self.backbone, state_dict)  # type: ignore[invalid-argument-type]
 
         # Create projection (and prediction) head
         batch_norm = version == 3
         if version > 1:
-            input_dim = self.backbone.num_features
+            input_dim = cast(int, self.backbone.num_features)
             self.projection_head = MoCoProjectionHead(
                 input_dim, hidden_dim, output_dim, layers, batch_norm=batch_norm
             )
@@ -412,9 +408,10 @@ class MoCoTask(BaseTask):
                 k = self.forward_momentum(x2)
             loss = self.criterion(q, k)
         if self.hparams['version'] == 3:
-            m = cosine_schedule(self.current_epoch, self.trainer.max_epochs, m, 1)
+            max_steps = self.trainer.max_epochs or 200
+            m = cosine_schedule(self.current_epoch, max_steps, m, 1)
             q1, h1 = self.forward(x1)
-            q2, h2 = self.forward(x2)
+            q2, _ = self.forward(x2)
             with torch.no_grad():
                 update_momentum(self.backbone, self.backbone_momentum, m)
                 update_momentum(self.projection_head, self.projection_head_momentum, m)

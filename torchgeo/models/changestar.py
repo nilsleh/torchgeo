@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """ChangeStar implementations."""
@@ -8,6 +8,7 @@ import torch.nn as nn
 from einops import rearrange
 from torch import Tensor
 from torch.nn.modules import Module
+from torchvision.models._api import WeightsEnum
 
 from .farseg import FarSeg
 
@@ -137,7 +138,7 @@ class ChangeStar(Module):
             a dictionary containing bitemporal semantic segmentation logit and binary
             change detection logit/probability
         """
-        b, t, c, h, w = x.shape
+        _, t, _, _, _ = x.shape
         x = rearrange(x, 'b t c h w -> (b t) c h w')
         # feature extraction
         bi_feature = self.dense_feature_extractor(x)
@@ -188,17 +189,20 @@ class ChangeStarFarSeg(ChangeStar):
         self,
         backbone: str = 'resnet50',
         classes: int = 1,
-        backbone_pretrained: bool = True,
+        backbone_weights: WeightsEnum | None = None,
     ) -> None:
         """Initializes a new ChangeStarFarSeg model.
 
         Args:
             backbone: name of ResNet backbone
             classes: number of output segmentation classes
-            backbone_pretrained: whether to use pretrained weight for backbone
+            backbone_weights: Pre-trained model weights to use.
+
+        .. versionadded:: 0.9
+           The *backbone_weights* parameter.
         """
         model = FarSeg(
-            backbone=backbone, classes=classes, backbone_pretrained=backbone_pretrained
+            backbone=backbone, classes=classes, backbone_weights=backbone_weights
         )
         seg_classifier: Module = model.decoder.classifier
         model.decoder.classifier = nn.modules.Identity()  # type: ignore[assignment]

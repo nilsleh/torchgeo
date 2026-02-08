@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """Trainers for regression."""
@@ -6,6 +6,7 @@
 import os
 from typing import Any
 
+import kornia.augmentation as K
 import matplotlib.pyplot as plt
 import segmentation_models_pytorch as smp
 import timm
@@ -16,6 +17,7 @@ from torch import Tensor
 from torchmetrics import MeanAbsoluteError, MeanSquaredError, MetricCollection
 from torchvision.models._api import WeightsEnum
 
+from ..datamodules import BaseDataModule
 from ..datasets import RGBBandsMissingError, unbind_samples
 from ..models import FCN, get_weight
 from . import utils
@@ -83,7 +85,7 @@ class RegressionTask(BaseTask):
         """Initialize the model."""
         # Create model
         weights = self.weights
-        self.model = timm.create_model(  # type: ignore[attr-defined]
+        self.model = timm.create_model(
             self.hparams['model'],
             num_classes=self.hparams['num_outputs'],
             in_chans=self.hparams['in_channels'],
@@ -98,7 +100,7 @@ class RegressionTask(BaseTask):
                 _, state_dict = utils.extract_backbone(weights)
             else:
                 state_dict = get_weight(weights).get_state_dict(progress=True)
-            utils.load_state_dict(self.model, state_dict)
+            utils.load_state_dict(self.model, state_dict)  # type: ignore[invalid-argument-type]
 
         # Freeze backbone and unfreeze classifier head
         if self.hparams['freeze_backbone']:
@@ -197,12 +199,18 @@ class RegressionTask(BaseTask):
         if (
             batch_idx < 10
             and hasattr(self.trainer, 'datamodule')
-            and hasattr(self.trainer.datamodule, 'plot')
+            and isinstance(self.trainer.datamodule, BaseDataModule)
             and self.logger
             and hasattr(self.logger, 'experiment')
             and hasattr(self.logger.experiment, 'add_figure')
         ):
             datamodule = self.trainer.datamodule
+            aug = K.AugmentationSequential(
+                K.Denormalize(datamodule.mean, datamodule.std),
+                data_keys=None,
+                keepdim=True,
+            )
+            batch = aug(batch)
             if self.target_key == 'mask':
                 y = y.squeeze(dim=1)
                 y_hat = y_hat.squeeze(dim=1)
@@ -221,7 +229,7 @@ class RegressionTask(BaseTask):
                 summary_writer = self.logger.experiment
                 summary_writer.add_figure(
                     f'image/{batch_idx}', fig, global_step=self.global_step
-                )
+                )  # type: ignore[call-non-callable]
                 plt.close()
 
     def test_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
@@ -274,33 +282,54 @@ class PixelwiseRegressionTask(RegressionTask):
         """Initialize the model."""
         weights = self.weights
 
-        if self.hparams['model'] == 'unet':
-            self.model = smp.Unet(
-                encoder_name=self.hparams['backbone'],
-                encoder_weights='imagenet' if weights is True else None,
-                in_channels=self.hparams['in_channels'],
-                classes=1,
-            )
-        elif self.hparams['model'] == 'deeplabv3+':
-            self.model = smp.DeepLabV3Plus(
-                encoder_name=self.hparams['backbone'],
-                encoder_weights='imagenet' if weights is True else None,
-                in_channels=self.hparams['in_channels'],
-                classes=1,
-            )
-        elif self.hparams['model'] == 'fcn':
-            self.model = FCN(
-                in_channels=self.hparams['in_channels'],
-                classes=1,
-                num_filters=self.hparams['num_filters'],
-            )
-        else:
-            raise ValueError(
-                f"Model type '{self.hparams['model']}' is not valid. "
-                "Currently, only supports 'unet', 'deeplabv3+' and 'fcn'."
-            )
+        model = self.hparams['model']
+        backbone = self.hparams['backbone']
+        in_channels = self.hparams['in_channels']
 
-        if self.hparams['model'] != 'fcn':
+        match model:
+            case 'unet':
+                self.model = smp.Unet(
+                    encoder_name=backbone,
+                    encoder_weights='imagenet' if weights is True else None,
+                    in_channels=in_channels,
+                    classes=1,
+                )
+            case 'deeplabv3+':
+                self.model = smp.DeepLabV3Plus(
+                    encoder_name=backbone,
+                    encoder_weights='imagenet' if weights is True else None,
+                    in_channels=in_channels,
+                    classes=1,
+                )
+            case 'fcn':
+                self.model = FCN(
+                    in_channels=in_channels,
+                    classes=1,
+                    num_filters=self.hparams['num_filters'],
+                )
+            case 'upernet':
+                self.model = smp.UPerNet(
+                    encoder_name=backbone,
+                    encoder_weights='imagenet' if weights is True else None,
+                    in_channels=in_channels,
+                    classes=1,
+                )
+            case 'segformer':
+                self.model = smp.Segformer(
+                    encoder_name=backbone,
+                    encoder_weights='imagenet' if weights is True else None,
+                    in_channels=in_channels,
+                    classes=1,
+                )
+            case 'dpt':
+                self.model = smp.DPT(
+                    encoder_name=backbone,
+                    encoder_weights='imagenet' if weights is True else None,
+                    in_channels=in_channels,
+                    classes=1,
+                )
+
+        if model != 'fcn':
             if weights and weights is not True:
                 if isinstance(weights, WeightsEnum):
                     state_dict = weights.get_state_dict(progress=True)
@@ -311,17 +340,11 @@ class PixelwiseRegressionTask(RegressionTask):
                 self.model.encoder.load_state_dict(state_dict)
 
         # Freeze backbone
-        if self.hparams.get('freeze_backbone', False) and self.hparams['model'] in [
-            'unet',
-            'deeplabv3+',
-        ]:
+        if self.hparams.get('freeze_backbone', False) and model != 'fcn':
             for param in self.model.encoder.parameters():
                 param.requires_grad = False
 
         # Freeze decoder
-        if self.hparams.get('freeze_decoder', False) and self.hparams['model'] in [
-            'unet',
-            'deeplabv3+',
-        ]:
+        if self.hparams.get('freeze_decoder', False) and model != 'fcn':
             for param in self.model.decoder.parameters():
                 param.requires_grad = False

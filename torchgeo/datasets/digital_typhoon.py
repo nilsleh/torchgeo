@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """Digital Typhoon dataset."""
@@ -7,8 +7,9 @@ import glob
 import os
 import tarfile
 from collections.abc import Callable, Sequence
-from typing import Any, ClassVar, TypedDict
+from typing import ClassVar, TypedDict
 
+import einops
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch
@@ -17,7 +18,7 @@ from torch import Tensor
 
 from .errors import DatasetNotFoundError
 from .geo import NonGeoDataset
-from .utils import Path, download_url, lazy_import, percentile_normalization
+from .utils import Path, Sample, download_url, lazy_import, percentile_normalization
 
 
 class _SampleSequenceDict(TypedDict):
@@ -87,8 +88,8 @@ class DigitalTyphoon(NonGeoDataset):
     url = 'https://hf.co/datasets/torchgeo/digital_typhoon/resolve/cf2f9ef89168d31cb09e42993d35b068688fe0df/WP.tar.gz{0}'
 
     md5sums: ClassVar[dict[str, str]] = {
-        'aa': '3af98052aed17e0ddb1e94caca2582e2',
-        'ab': '2c5d25455ac8aef1de33fe6456ab2c8d',
+        'aa': '9e77a5f74783f7909dee0fb936053b17',
+        'ab': '46aebdcba6e4e2df1619e4a3d7e556bb',
     }
 
     min_input_clamp = 170.0
@@ -105,7 +106,7 @@ class DigitalTyphoon(NonGeoDataset):
         sequence_length: int = 3,
         min_feature_value: dict[str, float] | None = None,
         max_feature_value: dict[str, float] | None = None,
-        transforms: Callable[[dict[str, Tensor]], dict[str, Tensor]] | None = None,
+        transforms: Callable[[Sample], Sample] | None = None,
         download: bool = False,
         checksum: bool = False,
     ) -> None:
@@ -209,8 +210,8 @@ class DigitalTyphoon(NonGeoDataset):
                 self.aux_df = self.aux_df[self.aux_df[feature] <= max_value]
 
         # collect target mean and std for each target
-        self.target_mean: dict[str, float] = self.aux_df[self.targets].mean().to_dict()
-        self.target_std: dict[str, float] = self.aux_df[self.targets].std().to_dict()
+        self.target_mean = self.aux_df[self.targets].mean().to_dict()
+        self.target_std = self.aux_df[self.targets].std().to_dict()
 
         def _get_subsequences(df: pd.DataFrame, k: int) -> list[dict[str, list[int]]]:
             """Generate all possible subsequences of length k for a given group.
@@ -244,7 +245,7 @@ class DigitalTyphoon(NonGeoDataset):
             for item in sublist
         ]
 
-    def __getitem__(self, index: int) -> dict[str, Any]:
+    def __getitem__(self, index: int) -> Sample:
         """Return an index within the dataset.
 
         Args:
@@ -274,7 +275,9 @@ class DigitalTyphoon(NonGeoDataset):
         )
 
         # torchgeo expects a single label
-        sample['label'] = torch.Tensor([sample[target] for target in self.targets])
+        sample['label'] = torch.tensor(
+            [sample[target] for target in self.targets], dtype=torch.float32
+        )
 
         if self.transforms is not None:
             sample = self.transforms(sample)
@@ -334,7 +337,7 @@ class DigitalTyphoon(NonGeoDataset):
         ).float()
         return tensor
 
-    def _load_features(self, filepath: str, image_path: str) -> dict[str, Any]:
+    def _load_features(self, filepath: str, image_path: str) -> dict[str, Tensor]:
         """Load features for the corresponding image.
 
         Args:
@@ -353,8 +356,8 @@ class DigitalTyphoon(NonGeoDataset):
         # normalize the targets for regression
         if self.task == 'regression':
             for feature, mean in self.target_mean.items():
-                feature_dict[feature] = (
-                    feature_dict[feature] - mean
+                feature_dict[feature] = (  # type: ignore[index]
+                    feature_dict[feature] - mean  # type: ignore[index]
                 ) / self.target_std[feature]
         return feature_dict
 
@@ -410,10 +413,7 @@ class DigitalTyphoon(NonGeoDataset):
                 tar.extractall(path=self.root)
 
     def plot(
-        self,
-        sample: dict[str, Any],
-        show_titles: bool = True,
-        suptitle: str | None = None,
+        self, sample: Sample, show_titles: bool = True, suptitle: str | None = None
     ) -> Figure:
         """Plot a sample from the dataset.
 
@@ -425,9 +425,10 @@ class DigitalTyphoon(NonGeoDataset):
         Returns:
             a matplotlib Figure with the rendered sample
         """
-        image, label = sample['image'], sample['label']
+        image, label = sample['image'].numpy(), sample['label'].numpy()
 
         image = percentile_normalization(image)
+        image = einops.rearrange(image, 'c h w -> h w c')
 
         showing_predictions = 'prediction' in sample
         if showing_predictions:
@@ -435,7 +436,7 @@ class DigitalTyphoon(NonGeoDataset):
 
         fig, ax = plt.subplots(1, 1, figsize=(10, 10))
 
-        ax.imshow(image.permute(1, 2, 0))
+        ax.imshow(image)
         ax.axis('off')
 
         if show_titles:

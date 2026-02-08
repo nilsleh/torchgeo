@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 # Configuration file for the Sphinx documentation builder.
@@ -12,8 +12,6 @@
 import os
 import sys
 
-import pytorch_sphinx_theme
-
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -24,7 +22,7 @@ import torchgeo
 # -- Project information -----------------------------------------------------
 
 project = 'torchgeo'
-copyright = '2021, Microsoft Corporation'
+copyright = 'TorchGeo Contributors'
 author = torchgeo.__author__
 version = '.'.join(torchgeo.__version__.split('.')[:2])
 release = torchgeo.__version__
@@ -36,11 +34,11 @@ release = torchgeo.__version__
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'myst_parser',
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
-    'sphinx.ext.todo',
     'sphinx.ext.viewcode',
     'nbsphinx',
 ]
@@ -50,18 +48,20 @@ extensions = [
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ['_build']
 
-# Sphinx 4.0+ required for autodoc_typehints_description_traget
-needs_sphinx = '4.0'
+# Sphinx 5.3+ required to allow section titles inside autodoc class docstrings
+# https://github.com/sphinx-doc/sphinx/pull/10887
+needs_sphinx = '5.3'
 
 nitpicky = True
 nitpick_ignore = [
     # Undocumented classes
-    ('py:class', 'fiona.model.Feature'),
     ('py:class', 'kornia.augmentation._2d.intensity.base.IntensityAugmentationBase2D'),
+    ('py:class', 'kornia.augmentation._3d.geometric.base.GeometricAugmentationBase3D'),
     ('py:class', 'kornia.augmentation.base._AugmentationBase'),
     ('py:class', 'lightning.pytorch.utilities.types.LRSchedulerConfig'),
     ('py:class', 'lightning.pytorch.utilities.types.OptimizerConfig'),
     ('py:class', 'lightning.pytorch.utilities.types.OptimizerLRSchedulerConfig'),
+    ('py:class', 'numpy.uint8'),
     ('py:class', 'segmentation_models_pytorch.base.model.SegmentationModel'),
     ('py:class', 'timm.models.resnet.ResNet'),
     ('py:class', 'timm.models.vision_transformer.VisionTransformer'),
@@ -76,25 +76,69 @@ nitpick_ignore = [
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'pytorch_sphinx_theme'
-html_theme_path = [pytorch_sphinx_theme.get_html_theme_path()]
+html_theme = 'pydata_sphinx_theme'
+
+# Define the version we use for matching in the version switcher.
+version_match = os.environ.get('READTHEDOCS_VERSION')
+json_url = 'https://torchgeo.readthedocs.io/en/latest/_static/switcher.json'
+
+# If READTHEDOCS_VERSION doesn't exist, we're not on RTD
+# If it is an integer, we're in a PR build and the version isn't correct.
+# If it's "latest" → change to "dev" (that's what we want the switcher to call it)
+if not version_match or version_match.isdigit() or version_match == 'latest':
+    # For local development, infer the version to match from the package.
+    if 'dev' in release or 'rc' in release:
+        version_match = 'dev'
+        # We want to keep the relative reference if we are in dev mode
+        # but we want the whole url if we are effectively in a released version
+        json_url = '_static/switcher.json'
+    else:
+        version_match = f'v{release}'
+elif version_match == 'stable':
+    version_match = f'v{release}'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
-# documentation.
+# documentation: https://pydata-sphinx-theme.readthedocs.io/
 html_theme_options = {
     'collapse_navigation': False,
-    'display_version': True,
-    'logo_only': True,
-    'pytorch_project': 'docs',
-    'navigation_with_keys': True,
-    'analytics_id': 'UA-209075005-1',
+    'show_nav_level': 2,
+    'show_toc_level': 2,
+    'navigation_depth': 4,
+    'navbar_align': 'left',
+    'header_links_before_dropdown': 6,
+    'icon_links': [
+        {
+            'name': 'GitHub',
+            'url': 'https://github.com/torchgeo/torchgeo',
+            'icon': 'fa-brands fa-github',
+        },
+        {
+            'name': 'Slack',
+            'url': 'https://join.slack.com/t/torchgeo/shared_invite/zt-22rse667m-eqtCeNW0yI000Tl4B~2PIw',
+            'icon': 'fa-brands fa-slack',
+        },
+        {
+            'name': 'YouTube',
+            'url': 'https://www.youtube.com/@TorchGeo',
+            'icon': 'fa-brands fa-youtube',
+        },
+    ],
+    'analytics': {'google_analytics_id': 'UA-209075005-1'},
+    'logo': {
+        'image_light': os.path.join('_static', 'logo', 'logo-color.svg'),
+        'image_dark': os.path.join('_static', 'logo', 'logo-color.svg'),
+    },
+    'switcher': {'json_url': json_url, 'version_match': version_match},
+    'navbar_start': ['navbar-logo', 'version-switcher'],
+    'navbar_center': ['navbar-nav'],
+    'navbar_end': ['theme-switcher', 'navbar-icon-links'],
 }
 
-html_favicon = os.path.join('..', 'logo', 'favicon.ico')
+html_favicon = os.path.join('_static', 'logo', 'favicon.ico')
 
 html_static_path = ['_static']
-html_css_files = ['badge-height.css', 'notebook-prompt.css', 'table-scroll.css']
+html_css_files = ['custom.css']
 
 # -- Extension configuration -------------------------------------------------
 
@@ -110,27 +154,28 @@ autodoc_typehints_description_target = 'documented'
 
 # sphinx.ext.intersphinx
 intersphinx_mapping = {
+    'einops': ('https://einops.rocks/', None),
     'kornia': ('https://kornia.readthedocs.io/en/stable/', None),
+    'lightning': ('https://lightning.ai/docs/pytorch/stable/', None),
     'matplotlib': ('https://matplotlib.org/stable/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
+    'pandas': ('https://pandas.pydata.org/docs/', None),
+    'pyproj': ('https://pyproj4.github.io/pyproj/stable/', None),
     'python': ('https://docs.python.org/3', None),
-    'lightning': ('https://lightning.ai/docs/pytorch/stable/', None),
     'rasterio': ('https://rasterio.readthedocs.io/en/stable/', None),
-    'rtree': ('https://rtree.readthedocs.io/en/stable/', None),
     'segmentation_models_pytorch': ('https://smp.readthedocs.io/en/stable/', None),
+    'shapely': ('https://shapely.readthedocs.io/en/stable/', None),
     'sklearn': ('https://scikit-learn.org/stable/', None),
     'timm': ('https://huggingface.co/docs/timm/main/en/', None),
-    'torch': ('https://pytorch.org/docs/stable', None),
+    'torch': ('https://docs.pytorch.org/docs/stable/', None),
     'torchmetrics': ('https://lightning.ai/docs/torchmetrics/stable/', None),
-    'torchvision': ('https://pytorch.org/vision/stable', None),
+    'torchvision': ('https://docs.pytorch.org/vision/stable/', None),
 }
+
+# myst-parser
+suppress_warnings = ['myst.header']
 
 # nbsphinx
 nbsphinx_execute = 'never'
 with open(os.path.join('tutorials', 'prolog.rst.jinja')) as f:
     nbsphinx_prolog = f.read()
-
-# Disables requirejs in nbsphinx to enable compatibility with the pytorch_sphinx_theme
-# See more information here https://github.com/spatialaudio/nbsphinx/issues/599
-# NOTE: This will likely break nbsphinx widgets
-nbsphinx_requirejs_path = ''

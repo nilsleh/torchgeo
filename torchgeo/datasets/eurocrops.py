@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """EuroCrops dataset."""
@@ -8,15 +8,21 @@ import os
 from collections.abc import Callable, Iterable
 from typing import Any
 
-import fiona
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib.figure import Figure
-from rasterio.crs import CRS
+from pyproj import CRS
 
 from .errors import DatasetNotFoundError
 from .geo import VectorDataset
-from .utils import Path, check_integrity, download_and_extract_archive, download_url
+from .utils import (
+    Path,
+    Sample,
+    check_integrity,
+    download_and_extract_archive,
+    download_url,
+)
 
 
 class EuroCrops(VectorDataset):
@@ -86,10 +92,10 @@ class EuroCrops(VectorDataset):
     def __init__(
         self,
         paths: Path | Iterable[Path] = 'data',
-        crs: CRS = CRS.from_epsg(4326),
-        res: float = 0.00001,
+        crs: CRS | None = None,
+        res: float | tuple[float, float] = (0.00001, 0.00001),
         classes: list[str] | None = None,
-        transforms: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+        transforms: Callable[[Sample], Sample] | None = None,
         download: bool = False,
         checksum: bool = False,
     ) -> None:
@@ -99,7 +105,8 @@ class EuroCrops(VectorDataset):
             paths: one or more root directories to search for files to load
             crs: :term:`coordinate reference system (CRS)` to warp to
                 (defaults to WGS-84)
-            res: resolution of the dataset in units of CRS
+            res: resolution of the dataset in units of CRS in (xres, yres) format. If a
+                single float is provided, it is used for both the x and y resolution.
             classes: list of classes to include (specified by their HCAT code),
                 the rest will be mapped to 0 (defaults to all classes)
             transforms: a function/transform that takes an input sample
@@ -118,6 +125,9 @@ class EuroCrops(VectorDataset):
 
         if not self._check_integrity():
             raise DatasetNotFoundError(self)
+
+        if crs is None:
+            crs = CRS.from_epsg(4326)
 
         self._load_class_map(classes)
 
@@ -191,11 +201,11 @@ class EuroCrops(VectorDataset):
         for idx, hcat_code in enumerate(classes):
             self.class_map[hcat_code] = idx + 1
 
-    def get_label(self, feature: 'fiona.model.Feature') -> int:
+    def get_label(self, feature: pd.Series) -> int:
         """Get label value to use for rendering a feature.
 
         Args:
-            feature: the :class:`fiona.model.Feature` from which to extract the label.
+            feature: the row from the GeoDataFrame from which to extract the label.
 
         Returns:
             the integer label, or 0 if the feature should not be rendered.
@@ -203,7 +213,7 @@ class EuroCrops(VectorDataset):
         # Convert the HCAT code of this feature to its index per self.class_map.
         # We go up the class hierarchy until there is a match.
         # (Parent code is computed by replacing rightmost non-0 character with 0.)
-        hcat_code = feature['properties'][self.label_name]
+        hcat_code = feature[self.label_name]
         if hcat_code is None:
             return 0
 
@@ -222,10 +232,7 @@ class EuroCrops(VectorDataset):
         return 0
 
     def plot(
-        self,
-        sample: dict[str, Any],
-        show_titles: bool = True,
-        suptitle: str | None = None,
+        self, sample: Sample, show_titles: bool = True, suptitle: str | None = None
     ) -> Figure:
         """Plot a sample from the dataset.
 

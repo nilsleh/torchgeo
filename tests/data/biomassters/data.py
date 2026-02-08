@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import csv
@@ -11,7 +11,7 @@ import shutil
 import numpy as np
 import rasterio
 
-metadata_train = 'The_BioMassters_-_features_metadata.csv.csv'
+metadata_train = 'biomassters_features_metadata.csv'
 
 csv_columns = [
     'filename',

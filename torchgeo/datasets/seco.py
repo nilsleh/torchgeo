@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """Sentinel 2 imagery from the Seasonal Contrast paper."""
@@ -18,7 +18,7 @@ from torch import Tensor
 
 from .errors import DatasetNotFoundError, RGBBandsMissingError
 from .geo import NonGeoDataset
-from .utils import Path, download_url, extract_archive, percentile_normalization
+from .utils import Path, Sample, download_url, extract_archive, percentile_normalization
 
 
 class SeasonalContrastS2(NonGeoDataset):
@@ -75,7 +75,7 @@ class SeasonalContrastS2(NonGeoDataset):
         version: str = '100k',
         seasons: int = 1,
         bands: Sequence[str] = rgb_bands,
-        transforms: Callable[[dict[str, Tensor]], dict[str, Tensor]] | None = None,
+        transforms: Callable[[Sample], Sample] | None = None,
         download: bool = False,
         checksum: bool = False,
     ) -> None:
@@ -113,7 +113,7 @@ class SeasonalContrastS2(NonGeoDataset):
 
         self._verify()
 
-    def __getitem__(self, index: int) -> dict[str, Tensor]:
+    def __getitem__(self, index: int) -> Sample:
         """Return an index within the dataset.
 
         Args:
@@ -171,11 +171,7 @@ class SeasonalContrastS2(NonGeoDataset):
                     # slowdown here from converting to/from a PIL Image just to resize.
                     # https://gist.github.com/calebrob6/748045ac8d844154067b2eefa47de92f
                     pil_image = Image.fromarray(band_data)
-                    # Moved in PIL 9.1.0
-                    try:
-                        resample = Image.Resampling.BILINEAR
-                    except AttributeError:
-                        resample = Image.BILINEAR  # type: ignore[attr-defined]
+                    resample = Image.Resampling.BILINEAR
                     band_data = np.array(
                         pil_image.resize((264, 264), resample=resample)
                     )
@@ -222,10 +218,7 @@ class SeasonalContrastS2(NonGeoDataset):
         )
 
     def plot(
-        self,
-        sample: dict[str, Tensor],
-        show_titles: bool = True,
-        suptitle: str | None = None,
+        self, sample: Sample, show_titles: bool = True, suptitle: str | None = None
     ) -> Figure:
         """Plot a sample from the dataset.
 

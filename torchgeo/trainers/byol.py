@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """BYOL trainer for self-supervised learning (SSL)."""
@@ -332,7 +332,7 @@ class BYOLTask(BaseTask):
         in_channels: int = self.hparams['in_channels']
 
         # Create backbone
-        backbone = timm.create_model(  # type: ignore[attr-defined]
+        backbone = timm.create_model(
             self.hparams['model'], in_chans=in_channels, pretrained=weights is True
         )
 
@@ -344,7 +344,7 @@ class BYOLTask(BaseTask):
                 _, state_dict = utils.extract_backbone(weights)
             else:
                 state_dict = get_weight(weights).get_state_dict(progress=True)
-            utils.load_state_dict(backbone, state_dict)
+            utils.load_state_dict(backbone, state_dict)  # type: ignore[invalid-argument-type]
 
         self.model = BYOL(backbone, in_channels=in_channels, image_size=(224, 224))
 

@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import os
@@ -19,14 +19,10 @@ class TestForestDamage:
     def dataset(self, monkeypatch: MonkeyPatch, tmp_path: Path) -> ForestDamage:
         data_dir = os.path.join('tests', 'data', 'forestdamage')
         url = os.path.join(data_dir, 'Data_Set_Larch_Casebearer.zip')
-        md5 = '52d82ac38899e6e6bb40aacda643ee15'
         monkeypatch.setattr(ForestDamage, 'url', url)
-        monkeypatch.setattr(ForestDamage, 'md5', md5)
         root = tmp_path
         transforms = nn.Identity()
-        return ForestDamage(
-            root=root, transforms=transforms, download=True, checksum=True
-        )
+        return ForestDamage(root=root, transforms=transforms, download=True)
 
     def test_already_downloaded(self, dataset: ForestDamage) -> None:
         ForestDamage(root=dataset.root, download=True)
@@ -36,7 +32,7 @@ class TestForestDamage:
         assert isinstance(x, dict)
         assert isinstance(x['image'], torch.Tensor)
         assert isinstance(x['label'], torch.Tensor)
-        assert isinstance(x['boxes'], torch.Tensor)
+        assert isinstance(x['bbox_xyxy'], torch.Tensor)
         assert x['image'].shape[0] == 3
         assert x['image'].ndim == 3
 
@@ -53,7 +49,7 @@ class TestForestDamage:
     def test_corrupted(self, tmp_path: Path) -> None:
         with open(os.path.join(tmp_path, 'Data_Set_Larch_Casebearer.zip'), 'w') as f:
             f.write('bad')
-        with pytest.raises(RuntimeError, match='Dataset found, but corrupted.'):
+        with pytest.raises(RuntimeError, match='Dataset found, but corrupted'):
             ForestDamage(root=tmp_path, checksum=True)
 
     def test_not_found(self, tmp_path: Path) -> None:
@@ -67,6 +63,6 @@ class TestForestDamage:
 
     def test_plot_prediction(self, dataset: ForestDamage) -> None:
         x = dataset[0].copy()
-        x['prediction_boxes'] = x['boxes'].clone()
+        x['prediction_bbox_xyxy'] = x['bbox_xyxy'].clone()
         dataset.plot(x, suptitle='Prediction')
         plt.close()

@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """BioMassters Dataset."""
@@ -16,7 +16,7 @@ from torch import Tensor
 
 from .errors import DatasetNotFoundError
 from .geo import NonGeoDataset
-from .utils import Path, percentile_normalization
+from .utils import Path, Sample, percentile_normalization
 
 
 class BioMassters(NonGeoDataset):
@@ -47,13 +47,16 @@ class BioMassters(NonGeoDataset):
 
     * https://nascetti-a.github.io/BioMasster/
 
+    .. note::
+        This dataset can be downloaded from `Torchgeo Hugging Face Hub <https://hf.co/datasets/torchgeo/biomassters>`_.
+
     .. versionadded:: 0.5
     """
 
     valid_splits = ('train', 'test')
     valid_sensors = ('S1', 'S2')
 
-    metadata_filename = 'The_BioMassters_-_features_metadata.csv.csv'
+    metadata_filename = 'biomassters_features_metadata.csv'
 
     def __init__(
         self,
@@ -127,7 +130,7 @@ class BioMassters(NonGeoDataset):
 
             self.df['num_index'] = self.df.groupby(['chip_id', 'month']).ngroup()
 
-    def __getitem__(self, index: int) -> dict[str, Tensor]:
+    def __getitem__(self, index: int) -> Sample:
         """Return an index within the dataset.
 
         Args:
@@ -147,7 +150,7 @@ class BioMassters(NonGeoDataset):
         )
 
         filepaths = sample_df['filename'].tolist()
-        sample: dict[str, Tensor] = {}
+        sample: Sample = {}
         for sens in self.sensors:
             sens_filepaths = [fp for fp in filepaths if sens in fp]
             sample[f'image_{sens}'] = self._load_input(sens_filepaths)
@@ -179,7 +182,10 @@ class BioMassters(NonGeoDataset):
         filepaths = [
             os.path.join(self.root, f'{self.split}_features', f) for f in filenames
         ]
-        arr_list = [rasterio.open(fp).read() for fp in filepaths]
+        arr_list = []
+        for fp in filepaths:
+            with rasterio.open(fp) as src:
+                arr_list.append(src.read())
         if self.as_time_series:
             arr = np.stack(arr_list, axis=0)
         else:
@@ -216,10 +222,7 @@ class BioMassters(NonGeoDataset):
         raise DatasetNotFoundError(self)
 
     def plot(
-        self,
-        sample: dict[str, Tensor],
-        show_titles: bool = True,
-        suptitle: str | None = None,
+        self, sample: Sample, show_titles: bool = True, suptitle: str | None = None
     ) -> Figure:
         """Plot a sample from the dataset.
 

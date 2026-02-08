@@ -1,14 +1,14 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """SimCLR trainer for self-supervised learning (SSL)."""
 
 import os
 import warnings
-from typing import Any
+from typing import Any, cast
 
 import kornia.augmentation as K
-import lightning
+import lightning.pytorch.utilities.types
 import timm
 import torch
 import torch.nn as nn
@@ -153,7 +153,7 @@ class SimCLRTask(BaseTask):
         weights = self.weights
 
         # Create backbone
-        self.backbone = timm.create_model(  # type: ignore[attr-defined]
+        self.backbone = timm.create_model(
             self.hparams['model'],
             in_chans=self.hparams['in_channels'],
             num_classes=0,
@@ -168,10 +168,10 @@ class SimCLRTask(BaseTask):
                 _, state_dict = utils.extract_backbone(weights)
             else:
                 state_dict = get_weight(weights).get_state_dict(progress=True)
-            utils.load_state_dict(self.backbone, state_dict)
+            utils.load_state_dict(self.backbone, state_dict)  # type: ignore[invalid-argument-type]
 
         # Create projection head
-        input_dim = self.backbone.num_features
+        input_dim = cast(int, self.backbone.num_features)
         if self.hparams['hidden_dim'] is None:
             self.hparams['hidden_dim'] = input_dim
         if self.hparams['output_dim'] is None:
@@ -254,7 +254,7 @@ class SimCLRTask(BaseTask):
             x2 = self.augmentations(x2)
 
         z1, h1 = self(x1)
-        z2, h2 = self(x2)
+        z2, _ = self(x2)
 
         loss: Tensor = self.criterion(z1, z2)
 

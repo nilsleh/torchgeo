@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import os
@@ -34,7 +34,7 @@ def test_extract_backbone_unsupported_model(tmp_path: Path) -> None:
 
 
 def test_get_input_layer_name_and_module() -> None:
-    key, module = _get_input_layer_name_and_module(timm.create_model('resnet18'))  # type: ignore[attr-defined]
+    key, module = _get_input_layer_name_and_module(timm.create_model('resnet18'))
     assert key == 'conv1'
     assert isinstance(module, nn.Conv2d)
     assert module.in_channels == 3

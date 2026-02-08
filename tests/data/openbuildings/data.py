@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import csv
@@ -10,7 +10,7 @@ import json
 import os
 import shutil
 
-from shapely.geometry import Polygon
+from shapely import Polygon
 
 SIZE = 0.05
 

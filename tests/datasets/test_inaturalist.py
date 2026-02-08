@@ -1,13 +1,16 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import os
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import pandas as pd
 import pytest
+from matplotlib.figure import Figure
+from torch import Tensor
 
 from torchgeo.datasets import (
-    BoundingBox,
     DatasetNotFoundError,
     INaturalist,
     IntersectionDataset,
@@ -24,6 +27,8 @@ class TestINaturalist:
     def test_getitem(self, dataset: INaturalist) -> None:
         x = dataset[dataset.bounds]
         assert isinstance(x, dict)
+        assert isinstance(x['keypoints'], Tensor)
+        assert x['keypoints'].shape == (1, 2)
 
     def test_len(self, dataset: INaturalist) -> None:
         assert len(dataset) == 3
@@ -40,9 +45,15 @@ class TestINaturalist:
         with pytest.raises(DatasetNotFoundError, match='Dataset not found'):
             INaturalist(tmp_path)
 
-    def test_invalid_query(self, dataset: INaturalist) -> None:
-        query = BoundingBox(0, 0, 0, 0, 0, 0)
+    def test_invalid_index(self, dataset: INaturalist) -> None:
+        mint = pd.Timestamp('2022-05-07 11:02:53+01:00')
         with pytest.raises(
-            IndexError, match='query: .* not found in index with bounds:'
+            IndexError, match=r'index: .* not found in dataset with bounds:'
         ):
-            dataset[query]
+            dataset[0:0, 0:0, mint:mint]
+
+    def test_plot(self, dataset: INaturalist) -> None:
+        sample = dataset[dataset.bounds]
+        fig = dataset.plot(sample, suptitle='test')
+        assert isinstance(fig, Figure)
+        plt.close()

@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """ReforesTree dataset."""
@@ -18,7 +18,13 @@ from torch import Tensor
 
 from .errors import DatasetNotFoundError
 from .geo import NonGeoDataset
-from .utils import Path, check_integrity, download_and_extract_archive, extract_archive
+from .utils import (
+    Path,
+    Sample,
+    check_integrity,
+    download_and_extract_archive,
+    extract_archive,
+)
 
 
 class ReforesTree(NonGeoDataset):
@@ -65,7 +71,7 @@ class ReforesTree(NonGeoDataset):
     def __init__(
         self,
         root: Path = 'data',
-        transforms: Callable[[dict[str, Tensor]], dict[str, Tensor]] | None = None,
+        transforms: Callable[[Sample], Sample] | None = None,
         download: bool = False,
         checksum: bool = False,
     ) -> None:
@@ -94,7 +100,7 @@ class ReforesTree(NonGeoDataset):
 
         self.class2idx: dict[str, int] = {c: i for i, c in enumerate(self.classes)}
 
-    def __getitem__(self, index: int) -> dict[str, Tensor]:
+    def __getitem__(self, index: int) -> Sample:
         """Return an index within the dataset.
 
         Args:
@@ -109,7 +115,7 @@ class ReforesTree(NonGeoDataset):
 
         boxes, labels, agb = self._load_target(filepath)
 
-        sample = {'image': image, 'boxes': boxes, 'label': labels, 'agb': agb}
+        sample = {'image': image, 'bbox_xyxy': boxes, 'label': labels, 'agb': agb}
 
         if self.transforms is not None:
             sample = self.transforms(sample)
@@ -135,7 +141,20 @@ class ReforesTree(NonGeoDataset):
         """
         image_paths = sorted(glob.glob(os.path.join(root, 'tiles', '**', '*.png')))
 
-        return image_paths
+        # https://github.com/gyrrei/ReforesTree/issues/6
+        bad_paths = [
+            'Carlos Vera Guevara RGB_15_8425_8305_12425_12305.png',
+            'Flora Pluas RGB_3_0_11400_4000_15400.png',
+            'Flora Pluas RGB_4_0_11578_4000_15578.png',
+            'Flora Pluas RGB_23_12782_11400_16782_15400.png',
+            'Flora Pluas RGB_24_12782_11578_16782_15578.png',
+        ]
+        final_paths = []
+        for path in image_paths:
+            if os.path.basename(path) not in bad_paths:
+                final_paths.append(path)
+
+        return final_paths
 
     def _load_image(self, path: Path) -> Tensor:
         """Load a single image.
@@ -148,7 +167,7 @@ class ReforesTree(NonGeoDataset):
         """
         with Image.open(path) as img:
             array: np.typing.NDArray[np.uint8] = np.array(img)
-            tensor = torch.from_numpy(array)
+            tensor = torch.from_numpy(array).float()
             # Convert from HxWxC to CxHxW
             tensor = tensor.permute((2, 0, 1))
             return tensor
@@ -164,11 +183,15 @@ class ReforesTree(NonGeoDataset):
         """
         tile_df = self.annot_df[self.annot_df['img_path'] == os.path.basename(filepath)]
 
-        boxes = torch.Tensor(tile_df[['xmin', 'ymin', 'xmax', 'ymax']].values.tolist())
-        labels = torch.Tensor(
-            [self.class2idx[label] for label in tile_df['group'].tolist()]
+        boxes = torch.tensor(
+            tile_df[['xmin', 'ymin', 'xmax', 'ymax']].values.tolist(),
+            dtype=torch.float32,
         )
-        agb = torch.Tensor(tile_df['AGB'].tolist())
+        labels = torch.tensor(
+            [self.class2idx[label] for label in tile_df['group'].tolist()],
+            dtype=torch.long,
+        )
+        agb = torch.tensor(tile_df['AGB'].tolist(), dtype=torch.float32)
 
         return boxes, labels, agb
 
@@ -202,10 +225,7 @@ class ReforesTree(NonGeoDataset):
         )
 
     def plot(
-        self,
-        sample: dict[str, Tensor],
-        show_titles: bool = True,
-        suptitle: str | None = None,
+        self, sample: Sample, show_titles: bool = True, suptitle: str | None = None
     ) -> Figure:
         """Plot a sample from the dataset.
 
@@ -219,7 +239,7 @@ class ReforesTree(NonGeoDataset):
         """
         image = sample['image'].permute((1, 2, 0)).numpy()
         ncols = 1
-        showing_predictions = 'prediction_boxes' in sample
+        showing_predictions = 'prediction_bbox_xyxy' in sample
         if showing_predictions:
             ncols += 1
 
@@ -239,7 +259,7 @@ class ReforesTree(NonGeoDataset):
                 edgecolor='r',
                 facecolor='none',
             )
-            for bbox in sample['boxes'].numpy()
+            for bbox in sample['bbox_xyxy'].numpy()
         ]
         for bbox in bboxes:
             axs[0].add_patch(bbox)
@@ -260,7 +280,7 @@ class ReforesTree(NonGeoDataset):
                     edgecolor='r',
                     facecolor='none',
                 )
-                for bbox in sample['prediction_boxes'].numpy()
+                for bbox in sample['prediction_bbox_xyxy'].numpy()
             ]
             for bbox in pred_bboxes:
                 axs[1].add_patch(bbox)

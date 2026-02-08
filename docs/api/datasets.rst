@@ -56,10 +56,25 @@ Chesapeake Land Cover
 .. autoclass:: ChesapeakeWV
 .. autoclass:: ChesapeakeCVPR
 
+Copernicus-Embed
+^^^^^^^^^^^^^^^^
+
+.. autoclass:: CopernicusEmbed
+
+GlobalBuildingMap
+^^^^^^^^^^^^^^^^^
+
+.. autoclass:: GlobalBuildingMap
+
 Global Mangrove Distribution
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: CMSGlobalMangroveCanopy
+
+Google Satellite Embedding
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: GoogleSatelliteEmbedding
 
 Cropland Data Layer
 ^^^^^^^^^^^^^^^^^^^
@@ -171,6 +186,16 @@ Open Buildings
 
 .. autoclass:: OpenBuildings
 
+OpenStreetMap
+^^^^^^^^^^^^^
+
+.. autoclass:: OpenStreetMap
+
+Presto Embeddings
+^^^^^^^^^^^^^^^^^
+
+.. autoclass:: PrestoEmbeddings
+
 PRISMA
 ^^^^^^
 
@@ -192,6 +217,11 @@ South America Soybean
 ^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: SouthAmericaSoybean
+
+Tessera Embeddings
+^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: TesseraEmbeddings
 
 .. _Non-geospatial Datasets:
 
@@ -220,6 +250,7 @@ BigEarthNet
 ^^^^^^^^^^^
 
 .. autoclass:: BigEarthNet
+.. autoclass:: BigEarthNetV2
 
 BioMassters
 ^^^^^^^^^^^
@@ -246,10 +277,20 @@ ChaBuD
 
 .. autoclass:: ChaBuD
 
+Clay Embeddings
+^^^^^^^^^^^^^^^
+
+.. autoclass:: ClayEmbeddings
+
 Cloud Cover Detection
 ^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: CloudCoverDetection
+
+Copernicus-Pretrain
+^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: CopernicusPretrain
 
 COWC
 ^^^^
@@ -278,11 +319,29 @@ DFC2022
 
 .. autoclass:: DFC2022
 
+DIOR
+^^^^
+
+.. autoclass:: DIOR
+
 
 Digital Typhoon
 ^^^^^^^^^^^^^^^
 
 .. autoclass:: DigitalTyphoon
+
+DL4GAM
+^^^^^^
+.. autoclass:: DL4GAMAlps
+
+DOTA
+^^^^
+.. autoclass:: DOTA
+
+Earth Index Embeddings
+^^^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: EarthIndexEmbeddings
 
 ETCI2021 Flood Detection
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -295,6 +354,11 @@ EuroSAT
 .. autoclass:: EuroSAT
 .. autoclass:: EuroSATSpatial
 .. autoclass:: EuroSAT100
+
+EverWatch
+^^^^^^^^^
+
+.. autoclass:: EverWatch
 
 FAIR1M
 ^^^^^^
@@ -368,6 +432,11 @@ LoveDA
 
 .. autoclass:: LoveDA
 
+Major TOM
+^^^^^^^^^
+
+.. autoclass:: MajorTOMEmbeddings
+
 MapInWild
 ^^^^^^^^^
 
@@ -397,6 +466,7 @@ OSCD
 ^^^^
 
 .. autoclass:: OSCD
+.. autoclass:: OSCD100
 
 PASTIS
 ^^^^^^
@@ -468,18 +538,15 @@ So2Sat
 
 .. autoclass:: So2Sat
 
-SpaceNet
-^^^^^^^^
+Solar Plants Brazil
+^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: SpaceNet
-.. autoclass:: SpaceNet1
-.. autoclass:: SpaceNet2
-.. autoclass:: SpaceNet3
-.. autoclass:: SpaceNet4
-.. autoclass:: SpaceNet5
-.. autoclass:: SpaceNet6
-.. autoclass:: SpaceNet7
-.. autoclass:: SpaceNet8
+.. autoclass:: SolarPlantsBrazil
+
+SODA
+^^^^
+
+.. autoclass:: SODAA
 
 SSL4EO
 ^^^^^^
@@ -492,6 +559,11 @@ SSL4EO-L Benchmark
 ^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: SSL4EOLBenchmark
+
+Substation
+^^^^^^^^^^
+
+.. autoclass:: Substation
 
 SustainBench Crop Yield
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -533,10 +605,10 @@ Western USA Live Fuel Moisture
 
 .. autoclass:: WesternUSALiveFuelMoisture
 
-xView2
-^^^^^^
+xBD
+^^^
 
-.. autoclass:: XView2
+.. autoclass:: xBD
 
 ZueriCrop
 ^^^^^^^^^
@@ -544,6 +616,56 @@ ZueriCrop
 .. autoclass:: ZueriCrop
 
 .. _Base Classes:
+
+Copernicus-Bench
+----------------
+
+Copernicus-Bench is a comprehensive evaluation benchmark with 15 downstream tasks hierarchically organized across preprocessing (e.g., cloud removal), base applications (e.g., land cover classification), and specialized applications (e.g., air quality estimation). This benchmark enables systematic assessment of foundation model performances across various Sentinel missions on different levels of practical applications.
+
+.. csv-table:: C = classification,  R = regression, S = semantic segmentation, T = time series, CD = change detection, E = embedding
+   :widths: 5 15 7 15 20 12 11 12 15 13
+   :header-rows: 1
+   :align: center
+   :file: datasets/copernicus_bench.csv
+
+.. autoclass:: CopernicusBench
+.. autoclass:: CopernicusBenchBase
+.. autoclass:: CopernicusBenchCloudS2
+.. autoclass:: CopernicusBenchCloudS3
+.. autoclass:: CopernicusBenchEuroSATS1
+.. autoclass:: CopernicusBenchEuroSATS2
+.. autoclass:: CopernicusBenchBigEarthNetS1
+.. autoclass:: CopernicusBenchBigEarthNetS2
+.. autoclass:: CopernicusBenchLC100ClsS3
+.. autoclass:: CopernicusBenchLC100SegS3
+.. autoclass:: CopernicusBenchDFC2020S1
+.. autoclass:: CopernicusBenchDFC2020S2
+.. autoclass:: CopernicusBenchFloodS1
+.. autoclass:: CopernicusBenchLCZS2
+.. autoclass:: CopernicusBenchBiomassS3
+.. autoclass:: CopernicusBenchAQNO2S5P
+.. autoclass:: CopernicusBenchAQO3S5P
+
+SpaceNet
+--------
+
+The `SpaceNet Dataset <https://spacenet.ai/datasets/>`_ is hosted as an Amazon Web Services (AWS) `Public Dataset <https://registry.opendata.aws/spacenet/>`_. It contains ~67,000 square km of very high-resolution imagery, >11M building footprints, and ~20,000 km of road labels to ensure that there is adequate open source data available for geospatial machine learning research. SpaceNet Challenge Dataset's have a combination of very high resolution satellite imagery and high quality corresponding labels for foundational mapping features such as building footprints or road networks.
+
+.. csv-table:: I = instance segmentation
+   :widths: 15 7 15 20 12 11 12 15 13
+   :header-rows: 1
+   :align: center
+   :file: datasets/spacenet.csv
+
+.. autoclass:: SpaceNet
+.. autoclass:: SpaceNet1
+.. autoclass:: SpaceNet2
+.. autoclass:: SpaceNet3
+.. autoclass:: SpaceNet4
+.. autoclass:: SpaceNet5
+.. autoclass:: SpaceNet6
+.. autoclass:: SpaceNet7
+.. autoclass:: SpaceNet8
 
 Base Classes
 ------------
@@ -587,8 +709,6 @@ UnionDataset
 
 Utilities
 ---------
-
-.. autoclass:: BoundingBox
 
 Collation Functions
 ^^^^^^^^^^^^^^^^^^^

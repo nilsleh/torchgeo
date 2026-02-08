@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import csv
@@ -19,6 +19,9 @@ PATHS = {
     'images': [
         'tiles/Site1/Site1_RGB_0_0_0_4000_4000.png',
         'tiles/Site2/Site2_RGB_0_0_0_4000_4000.png',
+        'tiles/Site3/Site3_RGB_0_0_0_4000_4000.png',
+        'tiles/Site4/Site4_RGB_0_0_0_4000_4000.png',
+        'tiles/Site5/Site5_RGB_0_0_0_4000_4000.png',
     ],
     'annotation': 'mapping/final_dataset.csv',
 }

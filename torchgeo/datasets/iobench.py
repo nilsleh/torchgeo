@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """I/O benchmark dataset."""
@@ -6,17 +6,17 @@
 import glob
 import os
 from collections.abc import Callable, Sequence
-from typing import Any, ClassVar
+from typing import ClassVar
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from rasterio.crs import CRS
+from pyproj import CRS
 
 from .cdl import CDL
 from .errors import DatasetNotFoundError, RGBBandsMissingError
 from .geo import IntersectionDataset
 from .landsat import Landsat9
-from .utils import Path, download_url, extract_archive
+from .utils import Path, Sample, download_url, extract_archive
 
 
 class IOBench(IntersectionDataset):
@@ -53,10 +53,10 @@ class IOBench(IntersectionDataset):
         root: Path = 'data',
         split: str = 'preprocessed',
         crs: CRS | None = None,
-        res: float | None = None,
+        res: float | tuple[float, float] | None = None,
         bands: Sequence[str] | None = [*Landsat9.default_bands, 'SR_QA_AEROSOL'],
         classes: list[int] = [0],
-        transforms: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+        transforms: Callable[[Sample], Sample] | None = None,
         cache: bool = True,
         download: bool = False,
         checksum: bool = False,
@@ -68,8 +68,9 @@ class IOBench(IntersectionDataset):
             split: One of 'original', 'raw', or 'preprocessed'.
             crs: :term:`coordinate reference system (CRS)` to warp to
                 (defaults to the CRS of the first file found)
-            res: Resolution of the dataset in units of CRS
-                (defaults to the resolution of the first file found).
+            res: Resolution of the dataset in units of CRS in (xres, yres) format. If a
+                single float is provided, it is used for both the x and y resolution.
+                (defaults to the resolution of the first file found)
             bands: Bands to return (defaults to all bands).
             classes: List of classes to include, the rest will be mapped to 0.
             transforms: A function/transform that takes an input sample
@@ -134,10 +135,7 @@ class IOBench(IntersectionDataset):
         extract_archive(os.path.join(self.root, f'{self.split}.tar.gz'), self.root)
 
     def plot(
-        self,
-        sample: dict[str, Any],
-        show_titles: bool = True,
-        suptitle: str | None = None,
+        self, sample: Sample, show_titles: bool = True, suptitle: str | None = None
     ) -> Figure:
         """Plot a sample from the dataset.
 

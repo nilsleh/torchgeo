@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """PASTIS dataset."""
@@ -7,7 +7,7 @@ import os
 from collections.abc import Callable, Sequence
 from typing import ClassVar
 
-import fiona
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -17,7 +17,7 @@ from torch import Tensor
 
 from .errors import DatasetNotFoundError
 from .geo import NonGeoDataset
-from .utils import Path, check_integrity, download_url, extract_archive
+from .utils import Path, Sample, check_integrity, download_url, extract_archive
 
 
 class PASTIS(NonGeoDataset):
@@ -133,7 +133,7 @@ class PASTIS(NonGeoDataset):
         folds: Sequence[int] = (1, 2, 3, 4, 5),
         bands: str = 's2',
         mode: str = 'semantic',
-        transforms: Callable[[dict[str, Tensor]], dict[str, Tensor]] | None = None,
+        transforms: Callable[[Sample], Sample] | None = None,
         download: bool = False,
         checksum: bool = False,
     ) -> None:
@@ -179,7 +179,7 @@ class PASTIS(NonGeoDataset):
             )
         self._cmap = ListedColormap(colors)
 
-    def __getitem__(self, index: int) -> dict[str, Tensor]:
+    def __getitem__(self, index: int) -> Sample:
         """Return an index within the dataset.
 
         Args:
@@ -194,7 +194,7 @@ class PASTIS(NonGeoDataset):
             sample = {'image': image, 'mask': mask}
         elif self.mode == 'instance':
             mask, boxes, labels = self._load_instance_targets(index)
-            sample = {'image': image, 'mask': mask, 'boxes': boxes, 'label': labels}
+            sample = {'image': image, 'mask': mask, 'bbox_xyxy': boxes, 'label': labels}
 
         if self.transforms is not None:
             sample = self.transforms(sample)
@@ -221,7 +221,7 @@ class PASTIS(NonGeoDataset):
         path = self.files[index][self.bands]
         array = np.load(path)
 
-        tensor = torch.from_numpy(array)
+        tensor = torch.from_numpy(array).float()
         return tensor
 
     def _load_semantic_targets(self, index: int) -> Tensor:
@@ -290,13 +290,11 @@ class PASTIS(NonGeoDataset):
         Returns:
             list of dicts containing image and semantic/instance target file paths
         """
-        self.idxs = []
         metadata_fn = os.path.join(self.root, self.directory, 'metadata.geojson')
-        with fiona.open(metadata_fn) as f:
-            for row in f:
-                fold = int(row['properties']['Fold'])
-                if fold in self.folds:
-                    self.idxs.append(row['properties']['ID_PATCH'])
+        gdf = gpd.read_file(metadata_fn)
+        gdf['Fold'] = gdf['Fold'].astype(int)
+        gdf = gdf[gdf['Fold'].isin(self.folds)]
+        self.idxs = gdf['ID_PATCH'].tolist()
 
         files = []
         for i in self.idxs:
@@ -345,10 +343,7 @@ class PASTIS(NonGeoDataset):
         extract_archive(os.path.join(self.root, self.filename), self.root)
 
     def plot(
-        self,
-        sample: dict[str, Tensor],
-        show_titles: bool = True,
-        suptitle: str | None = None,
+        self, sample: Sample, show_titles: bool = True, suptitle: str | None = None
     ) -> Figure:
         """Plot a sample from the dataset.
 
@@ -401,3 +396,17 @@ class PASTIS(NonGeoDataset):
         if suptitle is not None:
             plt.suptitle(suptitle)
         return fig
+
+
+class PASTIS100(PASTIS):
+    """Subset of PASTIS-R containing only 100 time-series.
+
+    Intended for tutorials and demonstrations, not for benchmarking.
+
+    .. versionadded:: 0.9
+    """
+
+    directory = 'PASTIS-R'
+    filename = 'PASTIS-R.zip'
+    url = 'https://huggingface.co/datasets/torchgeo/PASTIS-R-100/resolve/acd0180e834e40934b79c0121f606d4f8ca3299d/PASTIS-R.zip'
+    md5 = '6b4a428bd27cdbc2abda44973ba42892'

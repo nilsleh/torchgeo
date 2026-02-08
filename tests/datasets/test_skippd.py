@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import os
@@ -15,7 +15,7 @@ from pytest import MonkeyPatch
 
 from torchgeo.datasets import SKIPPD, DatasetNotFoundError
 
-pytest.importorskip('h5py', minversion='3.6')
+pytest.importorskip('h5py', minversion='3.10')
 
 
 class TestSKIPPD:
@@ -24,23 +24,13 @@ class TestSKIPPD:
         self, monkeypatch: MonkeyPatch, tmp_path: Path, request: SubRequest
     ) -> SKIPPD:
         task, split = request.param
-        md5 = {
-            'nowcast': '6f5e54906927278b189f9281a2f54f39',
-            'forecast': 'f3b5d7d5c28ba238144fa1e726c46969',
-        }
-        monkeypatch.setattr(SKIPPD, 'md5', md5)
         url = os.path.join('tests', 'data', 'skippd', '{}')
         monkeypatch.setattr(SKIPPD, 'url', url)
         monkeypatch.setattr(plt, 'show', lambda *args: None)
         root = tmp_path
         transforms = nn.Identity()
         return SKIPPD(
-            root=root,
-            task=task,
-            split=split,
-            transforms=transforms,
-            download=True,
-            checksum=True,
+            root=root, task=task, split=split, transforms=transforms, download=True
         )
 
     def test_already_extracted(self, dataset: SKIPPD) -> None:

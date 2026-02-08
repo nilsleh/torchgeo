@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import csv
@@ -10,7 +10,8 @@ import zipfile
 
 import fiona
 from rasterio.crs import CRS
-from shapely.geometry import Polygon, mapping
+from shapely import Polygon
+from shapely.geometry import mapping
 
 # Size of example crop field polygon in projection units.
 # This is set to align with Sentinel-2 test data, which is a 128x128 image at 10

@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """SeasoNet dataset."""
@@ -21,7 +21,7 @@ from torch import Tensor
 
 from .errors import DatasetNotFoundError, RGBBandsMissingError
 from .geo import NonGeoDataset
-from .utils import Path, download_url, extract_archive, percentile_normalization
+from .utils import Path, Sample, download_url, extract_archive, percentile_normalization
 
 
 class SeasoNet(NonGeoDataset):
@@ -219,7 +219,7 @@ class SeasoNet(NonGeoDataset):
         bands: Iterable[str] = all_bands,
         grids: Iterable[int] = [1, 2],
         concat_seasons: int = 1,
-        transforms: Callable[[dict[str, Tensor]], dict[str, Tensor]] | None = None,
+        transforms: Callable[[Sample], Sample] | None = None,
         download: bool = False,
         checksum: bool = False,
     ) -> None:
@@ -282,8 +282,8 @@ class SeasoNet(NonGeoDataset):
 
         if self.concat_seasons > 1:
             # Group entries by location
-            self.files = csv.groupby(['Latitude', 'Longitude'])
-            self.files = self.files['Path'].agg('sum')
+            files = csv.groupby(['Latitude', 'Longitude'])
+            self.files = files['Path'].agg('sum')
 
             # Remove entries with less than concat_seasons available seasons
             self.files = self.files[
@@ -292,7 +292,7 @@ class SeasoNet(NonGeoDataset):
         else:
             self.files = csv['Path']
 
-    def __getitem__(self, index: int) -> dict[str, Tensor]:
+    def __getitem__(self, index: int) -> Sample:
         """Return an index within the dataset.
 
         Args:
@@ -402,7 +402,7 @@ class SeasoNet(NonGeoDataset):
 
     def plot(
         self,
-        sample: dict[str, Tensor],
+        sample: Sample,
         show_titles: bool = True,
         show_legend: bool = True,
         suptitle: str | None = None,

@@ -1,9 +1,9 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import os
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import pytest
 import segmentation_models_pytorch as smp
@@ -16,7 +16,7 @@ from torch.nn.modules import Module
 from torchvision.models._api import WeightsEnum
 
 from torchgeo.datamodules import MisconfigurationException, SEN12MSDataModule
-from torchgeo.datasets import LandCoverAI, RGBBandsMissingError
+from torchgeo.datasets import RGBBandsMissingError
 from torchgeo.main import main
 from torchgeo.models import ResNet18_Weights
 from torchgeo.trainers import SemanticSegmentationTask
@@ -50,10 +50,9 @@ class TestSemanticSegmentationTask:
         'name',
         [
             'agrifieldnet',
-            'cabuar',
-            'chabud',
             'chesapeake_cvpr_5',
             'chesapeake_cvpr_7',
+            'cloud_cover',
             'deepglobelandcover',
             'etci2021',
             'ftw',
@@ -67,6 +66,8 @@ class TestSemanticSegmentationTask:
             'loveda',
             'mmflood',
             'naipchesapeake',
+            'pastis',
+            'pastis100',
             'potsdam2d',
             'sen12ms_all',
             'sen12ms_s1',
@@ -76,11 +77,13 @@ class TestSemanticSegmentationTask:
             'sentinel2_eurocrops',
             'sentinel2_nccm',
             'sentinel2_south_america_soybean',
+            'solar_plants_brazil',
             'southafricacroptype',
             'spacenet1',
             'spacenet6',
             'ssl4eo_l_benchmark_cdl',
             'ssl4eo_l_benchmark_nlcd',
+            'substation',
             'vaihingen2d',
         ],
     )
@@ -88,20 +91,16 @@ class TestSemanticSegmentationTask:
         self, monkeypatch: MonkeyPatch, name: str, fast_dev_run: bool
     ) -> None:
         match name:
-            case 'chabud' | 'cabuar':
-                pytest.importorskip('h5py', minversion='3.6')
             case 'ftw':
                 pytest.importorskip('pyarrow')
-            case 'landcoverai':
-                sha256 = (
-                    'ecec8e871faf1bbd8ca525ca95ddc1c1f5213f40afb94599884bd85f990ebd6b'
-                )
-                monkeypatch.setattr(LandCoverAI, 'sha256', sha256)
 
         config = os.path.join('tests', 'conf', name + '.yaml')
 
         monkeypatch.setattr(smp, 'Unet', create_model)
         monkeypatch.setattr(smp, 'DeepLabV3Plus', create_model)
+        monkeypatch.setattr(smp, 'UPerNet', create_model)
+        monkeypatch.setattr(smp, 'Segformer', create_model)
+        monkeypatch.setattr(smp, 'DPT', create_model)
 
         args = [
             '--config',
@@ -139,8 +138,8 @@ class TestSemanticSegmentationTask:
         load_state_dict_from_url: None,
     ) -> WeightsEnum:
         path = tmp_path / f'{weights}.pth'
-        model = timm.create_model(  # type: ignore[attr-defined]
-            weights.meta['model'], in_chans=weights.meta['in_chans']
+        model = timm.create_model(
+            weights.meta['model'], in_chans=weights.meta['in_chans'], num_classes=10
         )
         torch.save(model.state_dict(), path)
         try:
@@ -157,6 +156,7 @@ class TestSemanticSegmentationTask:
             backbone=mocked_weights.meta['model'],
             weights=mocked_weights,
             in_channels=mocked_weights.meta['in_chans'],
+            num_classes=10,
         )
 
     def test_weight_str(self, mocked_weights: WeightsEnum) -> None:
@@ -164,6 +164,7 @@ class TestSemanticSegmentationTask:
             backbone=mocked_weights.meta['model'],
             weights=str(mocked_weights),
             in_channels=mocked_weights.meta['in_chans'],
+            num_classes=10,
         )
 
     @pytest.mark.slow
@@ -172,6 +173,7 @@ class TestSemanticSegmentationTask:
             backbone=weights.meta['model'],
             weights=weights,
             in_channels=weights.meta['in_chans'],
+            num_classes=10,
         )
 
     @pytest.mark.slow
@@ -180,17 +182,25 @@ class TestSemanticSegmentationTask:
             backbone=weights.meta['model'],
             weights=str(weights),
             in_channels=weights.meta['in_chans'],
+            num_classes=10,
         )
 
-    def test_invalid_model(self) -> None:
-        match = "Model type 'invalid_model' is not valid."
-        with pytest.raises(ValueError, match=match):
-            SemanticSegmentationTask(model='invalid_model')
+    def test_class_weights(self) -> None:
+        # Test with list of class weights
+        class_weights_list = [1.0, 2.0, 0.5]
+        task = SemanticSegmentationTask(class_weights=class_weights_list, num_classes=3)
+        assert task.hparams['class_weights'] == class_weights_list
 
-    def test_invalid_loss(self) -> None:
-        match = "Loss type 'invalid_loss' is not valid."
-        with pytest.raises(ValueError, match=match):
-            SemanticSegmentationTask(loss='invalid_loss')
+        # Test with tensor class weights
+        class_weights_tensor = torch.tensor([1.0, 2.0, 0.5])
+        task = SemanticSegmentationTask(
+            class_weights=class_weights_tensor, num_classes=3
+        )
+        assert torch.equal(task.hparams['class_weights'], class_weights_tensor)
+
+        # Test with None (default)
+        task = SemanticSegmentationTask(num_classes=3)
+        assert task.hparams['class_weights'] is None
 
     def test_no_plot_method(self, monkeypatch: MonkeyPatch, fast_dev_run: bool) -> None:
         monkeypatch.setattr(SEN12MSDataModule, 'plot', plot)
@@ -224,13 +234,19 @@ class TestSemanticSegmentationTask:
         )
         trainer.validate(model=model, datamodule=datamodule)
 
-    @pytest.mark.parametrize('model_name', ['unet', 'deeplabv3+'])
+    @pytest.mark.parametrize(
+        'model_name', ['unet', 'deeplabv3+', 'segformer', 'upernet']
+    )
     @pytest.mark.parametrize(
         'backbone', ['resnet18', 'mobilenet_v2', 'efficientnet-b0']
     )
-    def test_freeze_backbone(self, model_name: str, backbone: str) -> None:
+    def test_freeze_backbone(
+        self,
+        model_name: Literal['unet', 'deeplabv3+', 'segformer', 'upernet'],
+        backbone: str,
+    ) -> None:
         model = SemanticSegmentationTask(
-            model=model_name, backbone=backbone, freeze_backbone=True
+            model=model_name, backbone=backbone, num_classes=10, freeze_backbone=True
         )
         assert all(
             [param.requires_grad is False for param in model.model.encoder.parameters()]
@@ -243,9 +259,15 @@ class TestSemanticSegmentationTask:
             ]
         )
 
-    @pytest.mark.parametrize('model_name', ['unet', 'deeplabv3+'])
-    def test_freeze_decoder(self, model_name: str) -> None:
-        model = SemanticSegmentationTask(model=model_name, freeze_decoder=True)
+    @pytest.mark.parametrize(
+        'model_name', ['unet', 'deeplabv3+', 'segformer', 'upernet']
+    )
+    def test_freeze_decoder(
+        self, model_name: Literal['unet', 'deeplabv3+', 'segformer', 'upernet']
+    ) -> None:
+        model = SemanticSegmentationTask(
+            model=model_name, backbone='resnet18', num_classes=10, freeze_decoder=True
+        )
         assert all(
             [param.requires_grad is False for param in model.model.decoder.parameters()]
         )
@@ -256,3 +278,55 @@ class TestSemanticSegmentationTask:
                 for param in model.model.segmentation_head.parameters()
             ]
         )
+
+    def test_vit_backbone(self) -> None:
+        SemanticSegmentationTask(
+            model='dpt', backbone='tu-vit_base_patch16_224', num_classes=2
+        )
+
+    def test_predict_step_returns_dict(self) -> None:
+        """Test that predict_step returns a dictionary."""
+        task = SemanticSegmentationTask(task='multiclass', num_classes=10)
+        batch = {'image': torch.randn(2, 3, 64, 64)}
+        result = task.predict_step(batch, 0)
+
+        assert isinstance(result, dict)
+
+    def test_predict_step_contains_required_keys(self) -> None:
+        """Test that predict_step dict contains required keys."""
+        task = SemanticSegmentationTask(task='multiclass', num_classes=10)
+        batch = {'image': torch.randn(2, 3, 64, 64)}
+        result = task.predict_step(batch, 0)
+
+        assert 'probabilities' in result
+        assert 'bounds' in result
+        assert 'transform' in result
+
+    def test_predict_step_probabilities_shape(self) -> None:
+        """Test that probabilities have correct shape."""
+        num_classes = 10
+        task = SemanticSegmentationTask(task='multiclass', num_classes=num_classes)
+        batch_size = 2
+        height, width = 64, 64
+        batch = {'image': torch.randn(batch_size, 3, height, width)}
+        result = task.predict_step(batch, 0)
+
+        probabilities = result['probabilities']
+        assert probabilities.shape == (batch_size, num_classes, height, width)
+
+    def test_predict_step_preserves_metadata(self) -> None:
+        """Test that bounds and transform are passed through correctly."""
+        task = SemanticSegmentationTask(task='multiclass', num_classes=10)
+        bounds_tensor = torch.randn(2, 9)
+        transform_tensor = torch.randn(2, 6)
+        batch = {
+            'image': torch.randn(2, 3, 64, 64),
+            'bounds': bounds_tensor,
+            'transform': transform_tensor,
+        }
+        result = task.predict_step(batch, 0)
+
+        assert result['bounds'] is not None
+        assert result['transform'] is not None
+        assert torch.equal(result['bounds'], bounds_tensor)
+        assert torch.equal(result['transform'], transform_tensor)

@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """South Africa Crop Type Competition Dataset."""
@@ -6,24 +6,26 @@
 import os
 import re
 from collections.abc import Callable, Iterable, Sequence
-from typing import Any, ClassVar, cast
+from typing import ClassVar
 
 import matplotlib.pyplot as plt
+import pandas as pd
+import rasterio
 import torch
 from matplotlib.figure import Figure
-from rasterio.crs import CRS
+from pyproj import CRS
 from torch import Tensor
 
 from .errors import DatasetNotFoundError, RGBBandsMissingError
 from .geo import RasterDataset
-from .utils import BoundingBox, Path, which
+from .utils import GeoSlice, Path, Sample, which
 
 
 class SouthAfricaCropType(RasterDataset):
     """South Africa Crop Type Challenge dataset.
 
     The `South Africa Crop Type Challenge
-    <https://beta.source.coop/repositories/radiantearth/south-africa-crops-competition/description/>`__
+    <https://source.coop/radiantearth/south-africa-crops-competition>`__
     dataset includes satellite imagery from Sentinel-1 and Sentinel-2 and labels for
     crop type that were collected by aerial and vehicle survey from May 2017 to March
     2018. Data was provided by the Western Cape Department of Agriculture and is
@@ -114,7 +116,7 @@ class SouthAfricaCropType(RasterDataset):
         crs: CRS | None = None,
         classes: Sequence[int] = list(cmap.keys()),
         bands: Sequence[str] = s2_bands,
-        transforms: Callable[[dict[str, Tensor]], dict[str, Tensor]] | None = None,
+        transforms: Callable[[Sample], Sample] | None = None,
         download: bool = False,
     ) -> None:
         """Initialize a new South Africa Crop Type dataset instance.
@@ -151,24 +153,27 @@ class SouthAfricaCropType(RasterDataset):
             self.ordinal_map[k] = v
             self.ordinal_cmap[v] = torch.tensor(self.cmap[k])
 
-    def __getitem__(self, query: BoundingBox) -> dict[str, Any]:
-        """Return an index within the dataset.
+    def __getitem__(self, index: GeoSlice) -> Sample:
+        """Retrieve input, target, and/or metadata indexed by spatiotemporal slice.
 
         Args:
-            query: (minx, maxx, miny, maxy, mint, maxt) coordinates to index
+            index: [xmin:xmax:xres, ymin:ymax:yres, tmin:tmax:tres] coordinates to index.
 
         Returns:
-            data and labels at that index
+            Sample of input, target, and/or metadata at that index.
+
+        Raises:
+            IndexError: If *index* is not found in the dataset.
         """
-        assert isinstance(self.paths, str | os.PathLike)
+        x, y, t = self._disambiguate_slice(index)
+        interval = pd.Interval(t.start, t.stop)
+        df = self.index.iloc[self.index.index.overlaps(interval)]
+        df = df.iloc[:: t.step]
+        df = df.cx[x.start : x.stop, y.start : y.stop]
 
-        # Get all files matching the given query
-        hits = self.index.intersection(tuple(query), objects=True)
-        filepaths = cast(list[str], [hit.object for hit in hits])
-
-        if not filepaths:
+        if df.empty:
             raise IndexError(
-                f'query: {query} not found in index with bounds: {self.bounds}'
+                f'index: {index} not found in dataset with bounds: {self.bounds}'
             )
 
         data_list: list[Tensor] = []
@@ -179,7 +184,7 @@ class SouthAfricaCropType(RasterDataset):
         # Store date in July for s1 and s2 we want to use for each sample
         imagery_dates: dict[str, dict[str, str]] = {}
 
-        for filepath in filepaths:
+        for filepath in df.filepath:
             filename = os.path.basename(filepath)
             match = re.match(filename_regex, filename)
             if match:
@@ -197,6 +202,7 @@ class SouthAfricaCropType(RasterDataset):
                     imagery_dates[field_id][band_type] = date
 
         # Create Tensors for each band using stored dates
+        assert isinstance(self.paths, str | os.PathLike)
         for band in self.bands:
             band_type = 's1' if band in self.s1_bands else 's2'
             band_filepaths = []
@@ -212,7 +218,7 @@ class SouthAfricaCropType(RasterDataset):
                     f'{field_id}_{date}_{band}_10m.tif',
                 )
                 band_filepaths.append(filepath)
-            data_list.append(self._merge_files(band_filepaths, query))
+            data_list.append(self._merge_files(band_filepaths, index))
         image = torch.cat(data_list)
 
         # Add labels for each field
@@ -223,13 +229,14 @@ class SouthAfricaCropType(RasterDataset):
             )
             mask_filepaths.append(file_path)
 
-        mask = self._merge_files(mask_filepaths, query).squeeze(0)
+        mask = self._merge_files(mask_filepaths, index).squeeze(0)
 
+        transform = rasterio.transform.from_origin(x.start, y.stop, x.step, y.step)
         sample = {
-            'crs': self.crs,
-            'bounds': query,
+            'bounds': self._slice_to_tensor(index),
             'image': image.float(),
             'mask': mask.long(),
+            'transform': torch.tensor(transform),
         }
 
         if self.transforms is not None:
@@ -258,10 +265,7 @@ class SouthAfricaCropType(RasterDataset):
         azcopy('sync', f'{self.url}', self.paths, '--recursive=true')
 
     def plot(
-        self,
-        sample: dict[str, Tensor],
-        show_titles: bool = True,
-        suptitle: str | None = None,
+        self, sample: Sample, show_titles: bool = True, suptitle: str | None = None
     ) -> Figure:
         """Plot a sample from the dataset.
 

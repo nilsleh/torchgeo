@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """FAIR1M dataset."""
@@ -19,7 +19,7 @@ from torch import Tensor
 
 from .errors import DatasetNotFoundError
 from .geo import NonGeoDataset
-from .utils import Path, check_integrity, download_url, extract_archive
+from .utils import Path, Sample, check_integrity, download_url, extract_archive
 
 
 def parse_pascal_voc(path: Path) -> dict[str, Any]:
@@ -232,7 +232,7 @@ class FAIR1M(NonGeoDataset):
         self,
         root: Path = 'data',
         split: str = 'train',
-        transforms: Callable[[dict[str, Tensor]], dict[str, Tensor]] | None = None,
+        transforms: Callable[[Sample], Sample] | None = None,
         download: bool = False,
         checksum: bool = False,
     ) -> None:
@@ -264,7 +264,7 @@ class FAIR1M(NonGeoDataset):
             glob.glob(os.path.join(self.root, self.filename_glob[split]))
         )
 
-    def __getitem__(self, index: int) -> dict[str, Tensor]:
+    def __getitem__(self, index: int) -> Sample:
         """Return an index within the dataset.
 
         Args:
@@ -283,7 +283,7 @@ class FAIR1M(NonGeoDataset):
             label_path = label_path.replace('.tif', '.xml')
             voc = parse_pascal_voc(label_path)
             boxes, labels = self._load_target(voc['points'], voc['labels'])
-            sample = {'image': image, 'boxes': boxes, 'label': labels}
+            sample = {'image': image, 'bbox_xyxy': boxes, 'label': labels}
 
         if self.transforms is not None:
             sample = self.transforms(sample)
@@ -383,10 +383,7 @@ class FAIR1M(NonGeoDataset):
                 extract_archive(filepath)
 
     def plot(
-        self,
-        sample: dict[str, Tensor],
-        show_titles: bool = True,
-        suptitle: str | None = None,
+        self, sample: Sample, show_titles: bool = True, suptitle: str | None = None
     ) -> Figure:
         """Plot a sample from the dataset.
 
@@ -401,7 +398,7 @@ class FAIR1M(NonGeoDataset):
         image = sample['image'].permute((1, 2, 0)).numpy()
 
         ncols = 1
-        if 'prediction_boxes' in sample:
+        if 'prediction_bbox_xyxy' in sample:
             ncols += 1
 
         fig, axs = plt.subplots(ncols=ncols, figsize=(ncols * 10, 10))
@@ -411,10 +408,10 @@ class FAIR1M(NonGeoDataset):
         axs[0].imshow(image)
         axs[0].axis('off')
 
-        if 'boxes' in sample:
+        if 'bbox_xyxy' in sample:
             polygons = [
                 patches.Polygon(points, color='r', fill=False)
-                for points in sample['boxes'].numpy()
+                for points in sample['bbox_xyxy'].numpy()
             ]
             for polygon in polygons:
                 axs[0].add_patch(polygon)
@@ -427,7 +424,7 @@ class FAIR1M(NonGeoDataset):
             axs[1].axis('off')
             polygons = [
                 patches.Polygon(points, color='r', fill=False)
-                for points in sample['prediction_boxes'].numpy()
+                for points in sample['prediction_bbox_xyxy'].numpy()
             ]
             for polygon in polygons:
                 axs[0].add_patch(polygon)

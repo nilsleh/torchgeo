@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """NWPU VHR-10 dataset."""
@@ -19,6 +19,7 @@ from .errors import DatasetNotFoundError
 from .geo import NonGeoDataset
 from .utils import (
     Path,
+    Sample,
     check_integrity,
     download_and_extract_archive,
     download_url,
@@ -62,7 +63,7 @@ class ConvertCocoAnnotations:
     https://github.com/pytorch/vision/blob/v0.14.0/references/detection/coco_utils.py
     """
 
-    def __call__(self, sample: dict[str, Any]) -> dict[str, Any]:
+    def __call__(self, sample: Sample) -> dict[str, Any]:
         """Converts MS COCO fields (boxes, masks & labels) from list of ints to tensors.
 
         Args:
@@ -159,12 +160,12 @@ class VHR10(NonGeoDataset):
     """
 
     image_meta: ClassVar[dict[str, str]] = {
-        'url': 'https://hf.co/datasets/torchgeo/vhr10/resolve/7e7968ad265dadc4494e0ca4a079e0b63dc6f3f8/NWPU%20VHR-10%20dataset.zip',
+        'url': 'https://hf.co/datasets/isaaccorley/vhr10/resolve/60ecc4be33609184e2224606858cd00b7daba8df/NWPU%20VHR-10%20dataset.zip',
         'filename': 'NWPU VHR-10 dataset.zip',
         'md5': '6add6751469c12dd8c8d6223064c6c4d',
     }
     target_meta: ClassVar[dict[str, str]] = {
-        'url': 'https://hf.co/datasets/torchgeo/vhr10/resolve/7e7968ad265dadc4494e0ca4a079e0b63dc6f3f8/annotations.json',
+        'url': 'https://hf.co/datasets/isaaccorley/vhr10/resolve/7e7968ad265dadc4494e0ca4a079e0b63dc6f3f8/annotations.json',
         'filename': 'annotations.json',
         'md5': '7c76ec50c17a61bb0514050d20f22c08',
     }
@@ -187,7 +188,7 @@ class VHR10(NonGeoDataset):
         self,
         root: Path = 'data',
         split: str = 'positive',
-        transforms: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+        transforms: Callable[[Sample], Sample] | None = None,
         download: bool = False,
         checksum: bool = False,
     ) -> None:
@@ -230,7 +231,7 @@ class VHR10(NonGeoDataset):
             self.coco_convert = ConvertCocoAnnotations()
             self.ids = list(sorted(self.coco.imgs.keys()))
 
-    def __getitem__(self, index: int) -> dict[str, Any]:
+    def __getitem__(self, index: int) -> Sample:
         """Return an index within the dataset.
 
         Args:
@@ -241,17 +242,17 @@ class VHR10(NonGeoDataset):
         """
         id_ = index % len(self) + 1
 
-        sample: dict[str, Any] = {
+        sample: Sample = {
             'image': self._load_image(id_),
             'label': self._load_target(id_),
         }
 
         if sample['label']['annotations']:
             sample = self.coco_convert(sample)
-            sample['labels'] = sample['label']['labels']
-            sample['boxes'] = sample['label']['boxes']
-            sample['masks'] = sample['label']['masks']
-            del sample['label']
+            sample['class'] = sample['label']['labels']
+            sample['bbox_xyxy'] = sample['label']['boxes']
+            sample['mask'] = sample['label']['masks']
+            sample['label'] = sample.pop('class')
 
         if self.transforms is not None:
             sample = self.transforms(sample)
@@ -359,7 +360,7 @@ class VHR10(NonGeoDataset):
 
     def plot(
         self,
-        sample: dict[str, Tensor],
+        sample: Sample,
         show_titles: bool = True,
         suptitle: str | None = None,
         show_feats: str | None = 'both',
@@ -400,30 +401,29 @@ class VHR10(NonGeoDataset):
         if show_feats != 'boxes':
             skimage = lazy_import('skimage')
 
-        boxes = sample['boxes'].cpu().numpy()
-        labels = sample['labels'].cpu().numpy()
-
-        if 'masks' in sample:
-            masks = [mask.squeeze().cpu().numpy() for mask in sample['masks']]
+        boxes = sample['bbox_xyxy'].cpu().numpy()
+        labels = sample['label'].cpu().numpy()
+        if 'mask' in sample:
+            masks = [mask.squeeze().cpu().numpy() for mask in sample['mask']]
 
         n_gt = len(boxes)
 
         ncols = 1
-        show_predictions = 'prediction_labels' in sample
+        show_predictions = 'prediction_label' in sample
 
         if show_predictions:
             show_pred_boxes = False
             show_pred_masks = False
-            prediction_labels = sample['prediction_labels'].numpy()
-            prediction_scores = sample['prediction_scores'].numpy()
-            if 'prediction_boxes' in sample:
-                prediction_boxes = sample['prediction_boxes'].numpy()
+            prediction_label = sample['prediction_label'].numpy()
+            prediction_score = sample['prediction_score'].numpy()
+            if 'prediction_bbox_xyxy' in sample:
+                prediction_bbox_xyxy = sample['prediction_bbox_xyxy'].numpy()
                 show_pred_boxes = True
-            if 'prediction_masks' in sample:
-                prediction_masks = sample['prediction_masks'].numpy()
+            if 'prediction_mask' in sample:
+                prediction_mask = sample['prediction_mask'].numpy()
                 show_pred_masks = True
 
-            n_pred = len(prediction_labels)
+            n_pred = len(prediction_label)
             ncols += 1
 
         # Display image
@@ -459,7 +459,7 @@ class VHR10(NonGeoDataset):
             )
 
             # Add masks
-            if show_feats in {'masks', 'both'} and 'masks' in sample:
+            if show_feats in {'masks', 'both'} and 'mask' in sample:
                 mask = masks[i]
                 contours = skimage.measure.find_contours(mask, 0.5)
                 for verts in contours:
@@ -476,16 +476,16 @@ class VHR10(NonGeoDataset):
             axs[0, 1].imshow(image)
             axs[0, 1].axis('off')
             for i in range(n_pred):
-                score = prediction_scores[i]
+                score = prediction_score[i]
                 if score < 0.5:
                     continue
 
-                class_num = prediction_labels[i]
+                class_num = prediction_label[i]
                 color = cm(class_num / len(self.categories))
 
                 if show_pred_boxes:
                     # Add bounding boxes
-                    x1, y1, x2, y2 = prediction_boxes[i]
+                    x1, y1, x2, y2 = prediction_bbox_xyxy[i]
                     r = patches.Rectangle(
                         (x1, y1),
                         x2 - x1,
@@ -512,7 +512,7 @@ class VHR10(NonGeoDataset):
 
                 # Add masks
                 if show_pred_masks:
-                    mask = prediction_masks[i]
+                    mask = prediction_mask[i]
                     contours = skimage.measure.find_contours(mask, 0.5)
                     for verts in contours:
                         verts = np.fliplr(verts)

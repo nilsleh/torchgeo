@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """NASA Marine Debris dataset."""
@@ -12,18 +12,17 @@ import numpy as np
 import rasterio
 import torch
 from matplotlib.figure import Figure
-from torch import Tensor
 from torchvision.utils import draw_bounding_boxes
 
 from .errors import DatasetNotFoundError
 from .geo import NonGeoDataset
-from .utils import Path, which
+from .utils import Path, Sample, which
 
 
 class NASAMarineDebris(NonGeoDataset):
     """NASA Marine Debris dataset.
 
-    The `NASA Marine Debris <https://beta.source.coop/repositories/nasa/marine-debris/>`__
+    The `NASA Marine Debris <https://source.coop/nasa/marine-debris>`__
     dataset is a dataset for detection of floating marine debris in satellite imagery.
 
     Dataset features:
@@ -59,7 +58,7 @@ class NASAMarineDebris(NonGeoDataset):
     def __init__(
         self,
         root: Path = 'data',
-        transforms: Callable[[dict[str, Tensor]], dict[str, Tensor]] | None = None,
+        transforms: Callable[[Sample], Sample] | None = None,
         download: bool = False,
     ) -> None:
         """Initialize a new NASA Marine Debris Dataset instance.
@@ -82,7 +81,7 @@ class NASAMarineDebris(NonGeoDataset):
         self.source = sorted(glob.glob(os.path.join(self.root, 'source', '*.tif')))
         self.labels = sorted(glob.glob(os.path.join(self.root, 'labels', '*.npy')))
 
-    def __getitem__(self, index: int) -> dict[str, Tensor]:
+    def __getitem__(self, index: int) -> Sample:
         """Return an index within the dataset.
 
         Args:
@@ -105,7 +104,7 @@ class NASAMarineDebris(NonGeoDataset):
         indices = w_check & h_check
         boxes = boxes[indices]
 
-        sample = {'image': image, 'boxes': boxes}
+        sample = {'image': image, 'bbox_xyxy': boxes}
 
         if self.transforms is not None:
             sample = self.transforms(sample)
@@ -142,10 +141,7 @@ class NASAMarineDebris(NonGeoDataset):
         azcopy('sync', self.url, self.root, '--recursive=true')
 
     def plot(
-        self,
-        sample: dict[str, Tensor],
-        show_titles: bool = True,
-        suptitle: str | None = None,
+        self, sample: Sample, show_titles: bool = True, suptitle: str | None = None
     ) -> Figure:
         """Plot a sample from the dataset.
 
@@ -161,14 +157,16 @@ class NASAMarineDebris(NonGeoDataset):
 
         sample['image'] = sample['image'].byte()
         image = sample['image']
-        if 'boxes' in sample and len(sample['boxes']):
-            image = draw_bounding_boxes(image=sample['image'], boxes=sample['boxes'])
+        if 'bbox_xyxy' in sample and len(sample['bbox_xyxy']):
+            image = draw_bounding_boxes(
+                image=sample['image'], boxes=sample['bbox_xyxy']
+            )
         image_arr = image.permute((1, 2, 0)).numpy()
 
-        if 'prediction_boxes' in sample and len(sample['prediction_boxes']):
+        if 'prediction_bbox_xyxy' in sample and len(sample['prediction_bbox_xyxy']):
             ncols += 1
             preds = draw_bounding_boxes(
-                image=sample['image'], boxes=sample['prediction_boxes']
+                image=sample['image'], boxes=sample['prediction_bbox_xyxy']
             )
             preds_arr = preds.permute((1, 2, 0)).numpy()
 

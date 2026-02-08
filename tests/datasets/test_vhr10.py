@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import os
@@ -24,16 +24,12 @@ class TestVHR10:
     ) -> VHR10:
         url = os.path.join('tests', 'data', 'vhr10', 'NWPU VHR-10 dataset.zip')
         monkeypatch.setitem(VHR10.image_meta, 'url', url)
-        md5 = '497cb7e19a12c7d5abbefe8eac71d22d'
-        monkeypatch.setitem(VHR10.image_meta, 'md5', md5)
         url = os.path.join('tests', 'data', 'vhr10', 'annotations.json')
         monkeypatch.setitem(VHR10.target_meta, 'url', url)
-        md5 = '567c4cd8c12624864ff04865de504c58'
-        monkeypatch.setitem(VHR10.target_meta, 'md5', md5)
         root = tmp_path
         split = request.param
         transforms = nn.Identity()
-        return VHR10(root, split, transforms, download=True, checksum=True)
+        return VHR10(root, split, transforms, download=True)
 
     def test_getitem(self, dataset: VHR10) -> None:
         for i in range(2):
@@ -41,10 +37,10 @@ class TestVHR10:
             assert isinstance(x, dict)
             assert isinstance(x['image'], torch.Tensor)
             if dataset.split == 'positive':
-                assert isinstance(x['labels'], torch.Tensor)
-                assert isinstance(x['boxes'], torch.Tensor)
-                if 'masks' in x:
-                    assert isinstance(x['masks'], torch.Tensor)
+                assert isinstance(x['label'], torch.Tensor)
+                assert isinstance(x['bbox_xyxy'], torch.Tensor)
+                if 'mask' in x:
+                    assert isinstance(x['mask'], torch.Tensor)
 
     def test_len(self, dataset: VHR10) -> None:
         if dataset.split == 'positive':
@@ -72,7 +68,7 @@ class TestVHR10:
             VHR10(tmp_path)
 
     def test_plot(self, dataset: VHR10) -> None:
-        pytest.importorskip('skimage', minversion='0.19')
+        pytest.importorskip('skimage', minversion='0.22')
         x = dataset[1].copy()
         dataset.plot(x, suptitle='Test')
         plt.close()
@@ -82,10 +78,10 @@ class TestVHR10:
             scores = [0.7, 0.3, 0.7]
             for i in range(3):
                 x = dataset[i]
-                x['prediction_labels'] = x['labels']
-                x['prediction_boxes'] = x['boxes']
-                x['prediction_scores'] = torch.Tensor([scores[i]])
-                if 'masks' in x:
-                    x['prediction_masks'] = x['masks']
+                x['prediction_label'] = x['label']
+                x['prediction_bbox_xyxy'] = x['bbox_xyxy']
+                x['prediction_score'] = torch.Tensor([scores[i]])
+                if 'mask' in x:
+                    x['prediction_mask'] = x['mask']
                     dataset.plot(x, show_feats='masks')
                     plt.close()

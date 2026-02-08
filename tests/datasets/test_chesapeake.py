@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import os
@@ -6,15 +6,14 @@ import shutil
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import pandas as pd
 import pytest
 import torch
 import torch.nn as nn
 from _pytest.fixtures import SubRequest
 from pytest import MonkeyPatch
-from rasterio.crs import CRS
 
 from torchgeo.datasets import (
-    BoundingBox,
     ChesapeakeCVPR,
     ChesapeakeDC,
     DatasetNotFoundError,
@@ -34,18 +33,15 @@ class TestChesapeakeDC:
             '{state}_lulc_{year}_2022-Edition.zip',
         )
         monkeypatch.setattr(ChesapeakeDC, 'url', url)
-        md5s = {2018: '35c644f13ccdb1baf62adf85cb8c7e48'}
+        md5s = {2018: ''}
         monkeypatch.setattr(ChesapeakeDC, 'md5s', md5s)
         monkeypatch.setattr(plt, 'show', lambda *args: None)
         transforms = nn.Identity()
-        return ChesapeakeDC(
-            tmp_path, transforms=transforms, download=True, checksum=True
-        )
+        return ChesapeakeDC(tmp_path, transforms=transforms, download=True)
 
     def test_getitem(self, dataset: ChesapeakeDC) -> None:
         x = dataset[dataset.bounds]
         assert isinstance(x, dict)
-        assert isinstance(x['crs'], CRS)
         assert isinstance(x['mask'], torch.Tensor)
 
     def test_len(self, dataset: ChesapeakeDC) -> None:
@@ -71,23 +67,22 @@ class TestChesapeakeDC:
 
     def test_not_downloaded(self, tmp_path: Path) -> None:
         with pytest.raises(DatasetNotFoundError, match='Dataset not found'):
-            ChesapeakeDC(tmp_path, checksum=True)
+            ChesapeakeDC(tmp_path)
 
     def test_plot(self, dataset: ChesapeakeDC) -> None:
-        query = dataset.bounds
-        x = dataset[query]
+        index = dataset.bounds
+        x = dataset[index]
         dataset.plot(x, suptitle='Test')
         plt.close()
         x['prediction'] = x['mask'].clone()
         dataset.plot(x, suptitle='Prediction')
         plt.close()
 
-    def test_invalid_query(self, dataset: ChesapeakeDC) -> None:
-        query = BoundingBox(0, 0, 0, 0, 0, 0)
+    def test_invalid_index(self, dataset: ChesapeakeDC) -> None:
         with pytest.raises(
-            IndexError, match='query: .* not found in index with bounds:'
+            IndexError, match=r'index: .* not found in dataset with bounds:'
         ):
-            dataset[query]
+            dataset[0:0, 0:0, pd.Timestamp.min : pd.Timestamp.min]
 
 
 class TestChesapeakeCVPR:
@@ -102,14 +97,6 @@ class TestChesapeakeCVPR:
     def dataset(
         self, request: SubRequest, monkeypatch: MonkeyPatch, tmp_path: Path
     ) -> ChesapeakeCVPR:
-        monkeypatch.setattr(
-            ChesapeakeCVPR,
-            'md5s',
-            {
-                'base': '882d18b1f15ea4498bf54e674aecd5d4',
-                'prior_extension': '677446c486f3145787938b14ee3da13f',
-            },
-        )
         monkeypatch.setattr(
             ChesapeakeCVPR,
             'urls',
@@ -143,13 +130,11 @@ class TestChesapeakeCVPR:
             layers=request.param,
             transforms=transforms,
             download=True,
-            checksum=True,
         )
 
     def test_getitem(self, dataset: ChesapeakeCVPR) -> None:
         x = dataset[dataset.bounds]
         assert isinstance(x, dict)
-        assert isinstance(x['crs'], CRS)
         assert isinstance(x['mask'], torch.Tensor)
 
     def test_len(self, dataset: ChesapeakeCVPR) -> None:
@@ -188,21 +173,20 @@ class TestChesapeakeCVPR:
 
     def test_not_downloaded(self, tmp_path: Path) -> None:
         with pytest.raises(DatasetNotFoundError, match='Dataset not found'):
-            ChesapeakeCVPR(tmp_path, checksum=True)
+            ChesapeakeCVPR(tmp_path)
 
-    def test_out_of_bounds_query(self, dataset: ChesapeakeCVPR) -> None:
-        query = BoundingBox(0, 0, 0, 0, 0, 0)
+    def test_out_of_bounds_index(self, dataset: ChesapeakeCVPR) -> None:
         with pytest.raises(
-            IndexError, match='query: .* not found in index with bounds:'
+            IndexError, match=r'index: .* not found in dataset with bounds:'
         ):
-            dataset[query]
+            dataset[0:0, 0:0, pd.Timestamp.min : pd.Timestamp.min]
 
-    def test_multiple_hits_query(self, dataset: ChesapeakeCVPR) -> None:
+    def test_multiple_hits_index(self, dataset: ChesapeakeCVPR) -> None:
         ds = ChesapeakeCVPR(
             root=dataset.root, splits=['de-train', 'de-test'], layers=dataset.layers
         )
         with pytest.raises(
-            IndexError, match='query: .* spans multiple tiles which is not valid'
+            IndexError, match=r'index: .* spans multiple tiles which is not valid'
         ):
             ds[dataset.bounds]
 

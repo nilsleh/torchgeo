@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """TreeSatAI datasets."""
@@ -17,7 +17,7 @@ from torch import Tensor
 
 from .errors import DatasetNotFoundError
 from .geo import NonGeoDataset
-from .utils import Path, download_url, extract_archive, percentile_normalization
+from .utils import Path, Sample, download_url, extract_archive, percentile_normalization
 
 
 class TreeSatAI(NonGeoDataset):
@@ -128,7 +128,7 @@ class TreeSatAI(NonGeoDataset):
         root: Path = 'data',
         split: str = 'train',
         sensors: Sequence[str] = all_sensors,
-        transforms: Callable[[dict[str, Tensor]], dict[str, Tensor]] | None = None,
+        transforms: Callable[[Sample], Sample] | None = None,
         download: bool = False,
         checksum: bool = False,
     ) -> None:
@@ -174,7 +174,7 @@ class TreeSatAI(NonGeoDataset):
         """
         return len(self.files)
 
-    def __getitem__(self, index: int) -> dict[str, Tensor]:
+    def __getitem__(self, index: int) -> Sample:
         """Return an index within the dataset.
 
         Args:
@@ -184,7 +184,7 @@ class TreeSatAI(NonGeoDataset):
             Data and label at that index.
         """
         file = self.files[index]
-        label = torch.zeros(len(self.classes))
+        label = torch.zeros(len(self.classes), dtype=torch.long)
         for genus, _ in self.labels[file]:
             i = self.classes.index(genus)
             label[i] = 1
@@ -239,7 +239,7 @@ class TreeSatAI(NonGeoDataset):
 
         extract_archive(os.path.join(self.root, file), to_path)
 
-    def plot(self, sample: dict[str, Tensor], show_titles: bool = True) -> Figure:
+    def plot(self, sample: Sample, show_titles: bool = True) -> Figure:
         """Plot a sample from the dataset.
 
         Args:

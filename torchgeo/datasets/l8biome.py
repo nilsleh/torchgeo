@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """L8 Biome dataset."""
@@ -6,17 +6,16 @@
 import glob
 import os
 from collections.abc import Callable, Iterable, Sequence
-from typing import Any, ClassVar
+from typing import ClassVar
 
 import matplotlib.pyplot as plt
 import torch
 from matplotlib.figure import Figure
-from rasterio.crs import CRS
-from torch import Tensor
+from pyproj import CRS
 
 from .errors import DatasetNotFoundError, RGBBandsMissingError
 from .geo import IntersectionDataset, RasterDataset
-from .utils import BoundingBox, Path, download_url, extract_archive
+from .utils import GeoSlice, Path, Sample, download_url, extract_archive
 
 
 class L8BiomeImage(RasterDataset):
@@ -63,17 +62,19 @@ class L8BiomeMask(RasterDataset):
     ordinal_map[192] = 3
     ordinal_map[255] = 4
 
-    def __getitem__(self, query: BoundingBox) -> dict[str, Any]:
-        """Retrieve image/mask and metadata indexed by query.
+    def __getitem__(self, index: GeoSlice) -> Sample:
+        """Retrieve input, target, and/or metadata indexed by spatiotemporal slice.
 
         Args:
-            query: (minx, maxx, miny, maxy, mint, maxt) coordinates to index
+            index: [xmin:xmax:xres, ymin:ymax:yres, tmin:tmax:tres] coordinates to index.
+
         Returns:
-            sample of image, mask and metadata at that index
+            Sample of input, target, and/or metadata at that index.
+
         Raises:
-            IndexError: if query is not found in the index
+            IndexError: If *index* is not found in the dataset.
         """
-        sample = super().__getitem__(query)
+        sample = super().__getitem__(index)
         sample['mask'] = self.ordinal_map[sample['mask']]
         return sample
 
@@ -133,10 +134,10 @@ class L8Biome(IntersectionDataset):
     def __init__(
         self,
         paths: Path | Iterable[Path],
-        crs: CRS | None = CRS.from_epsg(3857),
-        res: float | None = None,
+        crs: CRS | None = None,
+        res: float | tuple[float, float] | None = None,
         bands: Sequence[str] = L8BiomeImage.all_bands,
-        transforms: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+        transforms: Callable[[Sample], Sample] | None = None,
         cache: bool = True,
         download: bool = False,
         checksum: bool = False,
@@ -147,7 +148,8 @@ class L8Biome(IntersectionDataset):
             paths: one or more root directories to search or files to load
             crs: :term:`coordinate reference system (CRS)` to warp to
                 (defaults to EPSG:3857)
-            res: resolution of the dataset in units of CRS
+            res: resolution of the dataset in units of CRS in (xres, yres) format. If a
+                single float is provided, it is used for both the x and y resolution.
                 (defaults to the resolution of the first file found)
             bands: bands to return (defaults to all bands)
             transforms: a function/transform that takes an input sample
@@ -164,6 +166,9 @@ class L8Biome(IntersectionDataset):
         self.checksum = checksum
 
         self._verify()
+
+        if crs is None:
+            crs = CRS.from_epsg(3857)
 
         self.image = L8BiomeImage(paths, crs, res, bands, transforms, cache)
         self.mask = L8BiomeMask(paths, crs, res, None, transforms, cache)
@@ -199,6 +204,7 @@ class L8Biome(IntersectionDataset):
 
     def _download(self) -> None:
         """Download the dataset."""
+        assert isinstance(self.paths, str | os.PathLike)
         for biome, md5 in self.md5s.items():
             download_url(
                 self.url.format(biome), self.paths, md5=md5 if self.checksum else None
@@ -212,10 +218,7 @@ class L8Biome(IntersectionDataset):
             extract_archive(tarfile)
 
     def plot(
-        self,
-        sample: dict[str, Tensor],
-        show_titles: bool = True,
-        suptitle: str | None = None,
+        self, sample: Sample, show_titles: bool = True, suptitle: str | None = None
     ) -> Figure:
         """Plot a sample from the dataset.
 

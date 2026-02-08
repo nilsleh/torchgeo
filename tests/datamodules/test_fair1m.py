@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import os
@@ -35,7 +35,7 @@ class TestFAIR1MDataModule:
         batch = next(iter(datamodule.val_dataloader()))
         sample = {
             'image': batch['image'][0],
-            'boxes': batch['boxes'][0],
+            'bbox_xyxy': batch['bbox_xyxy'][0],
             'label': batch['label'][0],
         }
         datamodule.plot(sample)

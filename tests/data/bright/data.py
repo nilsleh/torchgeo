@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 import hashlib
@@ -9,6 +9,8 @@ import shutil
 
 import numpy as np
 import rasterio
+from rasterio import Affine
+from rasterio.crs import CRS
 
 ROOT = '.'
 DATA_DIR = 'dfc25_track2_trainval'
@@ -26,6 +28,14 @@ HOLDOUT_IDS = ['turkey-earthquake_00000413']
 VAL_IDS = ['val-disaster_00000001', 'val-disaster_00000002']
 
 SIZE = 32
+transform = Affine(
+    4.572424737366368e-06,
+    0.0,
+    9.796201318793191,
+    0.0,
+    -4.572424813937713e-06,
+    1.846511153,
+)
 
 
 def make_dirs() -> None:
@@ -49,10 +59,8 @@ def write_list_file(filename: str, ids: list[str]) -> None:
             f.write(f'{sid}\n')
 
 
-def write_tif(filepath: str, channels: int) -> None:
-    data = np.random.randint(0, 255, (channels, SIZE, SIZE), dtype=np.uint8)
-    # transform = from_origin(0, 0, 1, 1)
-    crs = 'epsg:4326'
+def write_tif(filepath: str, channels: int, classes: int) -> None:
+    data = np.random.randint(0, classes, (channels, SIZE, SIZE), dtype=np.uint8)
     with rasterio.open(
         filepath,
         'w',
@@ -60,10 +68,10 @@ def write_tif(filepath: str, channels: int) -> None:
         height=SIZE,
         width=SIZE,
         count=channels,
-        crs=crs,
+        crs=CRS.from_epsg(4326),
         dtype=data.dtype,
         compress='lzw',
-        # transform=transform,
+        transform=transform,
     ) as dst:
         dst.write(data)
 
@@ -73,16 +81,16 @@ def populate_data(ids: list[str], dir_name: str, with_target: bool = True) -> No
         pre_path = os.path.join(
             ROOT, DATA_DIR, dir_name, 'pre-event', f'{sid}_pre_disaster.tif'
         )
-        write_tif(pre_path, channels=3)
+        write_tif(pre_path, channels=3, classes=256)
         post_path = os.path.join(
             ROOT, DATA_DIR, dir_name, 'post-event', f'{sid}_post_disaster.tif'
         )
-        write_tif(post_path, channels=1)
+        write_tif(post_path, channels=1, classes=256)
         if with_target:
             target_path = os.path.join(
                 ROOT, DATA_DIR, dir_name, 'target', f'{sid}_building_damage.tif'
             )
-            write_tif(target_path, channels=1)
+            write_tif(target_path, channels=1, classes=4)
 
 
 def main() -> None:

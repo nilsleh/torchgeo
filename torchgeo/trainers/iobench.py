@@ -1,11 +1,11 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) TorchGeo Contributors. All rights reserved.
 # Licensed under the MIT License.
 
 """Trainers for I/O benchmarking."""
 
 from typing import Any
 
-import lightning
+import lightning.pytorch.utilities.types
 import torch
 from torch import Tensor
 from torch.optim import SGD
