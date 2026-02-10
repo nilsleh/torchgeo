@@ -11,6 +11,7 @@ Dataset,Type,Source,License,Size (px),Resolution (m)
 :ref:`Google Satellite Embedding`,Embedding,"Sentinel 1/2, Landsat 8/9",CC-BY-4.0,"8,192",10
 :ref:`Cropland Data Layer`,Masks,Landsat,"public domain",-,30
 :ref:`EDDMapS`,Points,Citizen Scientists,-,-,-
+:ref:`Embedded Seamless Data`,Embedding,"Landsat 5/7/8/9, MODIS Terra, NASADEM",CC-BY-4.0,"3,600x3,600",30
 :ref:`EnMAP`,Imagery,EnMAP,`EnMAP Data License <https://www.enmap.org/data/resources/EnMAP_Data_License.pdf>`_,"1,200x1,200",30
 :ref:`EnviroAtlas`,"Imagery, Masks","NAIP, NLCD, OpenStreetMap","CC-BY-4.0",-,1
 :ref:`Esri2020`,Masks,Sentinel-2,"CC-BY-4.0",-,10

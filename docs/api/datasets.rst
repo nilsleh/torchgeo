@@ -34,6 +34,7 @@ Geospatial Datasets
    datasets/google-satellite-embedding
    datasets/cropland-data-layer
    datasets/eddmaps
+   datasets/embedded-seamless-data
    datasets/enmap
    datasets/enviroatlas
    datasets/esri2020
