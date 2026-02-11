@@ -384,7 +384,7 @@ class BigEarthNet(NonGeoDataset):
             paths = glob.glob(os.path.join(folder, '*.tif'))
             paths = sorted(paths, key=sort_sentinel2_bands)
 
-        return paths
+        return paths  # type: ignore[invalid-return-type]
 
     def _load_image(self, index: int) -> Tensor:
         """Load a single image.
