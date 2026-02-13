@@ -410,7 +410,7 @@ class DigitalTyphoon(NonGeoDataset):
             with tarfile.open(
                 os.path.join(self.root, f'{self.data_root}.tar.gz{suffix}')
             ) as tar:
-                tar.extractall(path=self.root, filter='data')    
+                tar.extractall(path=self.root)
 
     def plot(
         self, sample: Sample, show_titles: bool = True, suptitle: str | None = None
